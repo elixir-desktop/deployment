@@ -1,0 +1,1 @@
+-env DYLD_LIBRARY_PATH ../Resources/lib/<%= @release.name %>-<%= @release.version %>/priv/

@@ -1,0 +1,249 @@
+Name "<%= @package.name %> ${VERSION}"
+
+!include "x64.nsh"
+!include "MUI.nsh"
+!include "WordFunc.nsh"
+
+Var STARTMENU_FOLDER
+Var MYTEMP
+
+; General
+OutFile "../../<%= @package.name %>-${VERSION}-win32.exe"
+SetCompressor /SOLID lzma
+SetCompressorDictSize 64
+SetDatablockOptimize ON
+
+; Folder selection page
+InstallDir "$PROGRAMFILES64\<%= @package.name %>"
+
+; Registry keys where start menu folder is stored
+!define MY_STARTMENUPAGE_REGISTRY_ROOT HKLM
+!define MY_STARTMENUPAGE_REGISTRY_KEY "SOFTWARE\<%= @package.name %>\${VERSION}"
+!define MY_STARTMENUPAGE_REGISTRY_VALUENAME "Start Menu Folder"
+
+; Launch options
+!define TARGET "$INSTDIR\run.vbs"
+!define TARGET_PARAMS ""
+!define TARGET_ICON "$INSTDIR\lib\<%= @package.app_name %>-${VERSION}\priv\icon.ico"
+
+; Remember install folder
+InstallDirRegKey HKLM "${MY_STARTMENUPAGE_REGISTRY_KEY}" ""
+
+; Set the default start menu folder
+
+!define MUI_STARTMENUPAGE_DEFAULTFOLDER "<%= @package.name %>"
+
+!define MUI_ICON "..\..\..\..\priv\icon.ico"
+!define MUI_UNICON "..\..\..\..\priv\icon.ico"
+
+;--------------------------------
+;Modern UI Configuration
+!insertmacro MUI_PAGE_COMPONENTS
+!insertmacro MUI_PAGE_DIRECTORY
+
+!define MUI_STARTMENUPAGE_REGISTRY_ROOT ${MY_STARTMENUPAGE_REGISTRY_ROOT}
+!define MUI_STARTMENUPAGE_REGISTRY_KEY "${MY_STARTMENUPAGE_REGISTRY_KEY}"
+!define MUI_STARTMENUPAGE_REGISTRY_VALUENAME "${MY_STARTMENUPAGE_REGISTRY_VALUENAME}"
+
+!insertmacro MUI_PAGE_STARTMENU Application $STARTMENU_FOLDER
+
+!insertmacro MUI_PAGE_INSTFILES
+
+!insertmacro MUI_UNPAGE_CONFIRM
+!insertmacro MUI_UNPAGE_INSTFILES
+
+;--------------------------------
+;Languages
+!insertmacro MUI_LANGUAGE "English"
+;--------------------------------
+;Language Strings
+
+;Description
+LangString DESC_SecDrive ${LANG_ENGLISH} "<%= @package.description %>"
+LangString DESC_SecDriveBase ${LANG_ENGLISH} \
+    "Basic <%= @package.name %> components"
+LangString DESC_SecDriveClutterDesktop ${LANG_ENGLISH} \
+    "Create a shortcut to <%= @package.name %> on the Desktop."
+LangString DESC_SecDriveClutterQuicklaunch ${LANG_ENGLISH} \
+    "Create a shortcut to <%= @package.name %> in the task bar."
+
+; WordFunc
+!insertmacro VersionCompare
+;--------------------------------
+;Installer Sections
+
+SubSection /e "<%= @package.name %>" SecDrive
+Section "Base" SecDriveBase
+SectionIn 1 2 3 RO
+
+SetOutPath "$INSTDIR"
+File /r *.*
+
+ExecWait '"$INSTDIR\vcredist_x64.exe" /install /norestart /silent'
+ExecWait '"$INSTDIR\MicrosoftEdgeWebview2Setup.exe" /silent /install'
+
+WriteRegStr HKLM "${MY_STARTMENUPAGE_REGISTRY_KEY}" "" $INSTDIR
+WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "<%= @package.name %>" "${TARGET}"
+
+; Register for mimetype
+;WriteRegStr HKCR \
+;    "app" \
+;    "" "URL:app Protocol"
+;WriteRegStr HKCR \
+;    "app" \
+;    "URL Protocol" ""
+;WriteRegStr HKCR \
+;    "app\shell\open\command" \
+;    "" '"$WINDIR\system32\wscript.exe" "${TARGET}" "%1"'
+
+; Create uninstaller before shortcuts
+WriteUninstaller "$INSTDIR\Uninstall.exe"
+
+; The startmenu stuff
+!insertmacro MUI_STARTMENU_WRITE_BEGIN Application
+
+; Try to use the Common startmenu...
+SetShellVarContext All
+ClearErrors
+CreateDirectory "$SMPROGRAMS\$STARTMENU_FOLDER"
+
+CreateShortCut "$SMPROGRAMS\$STARTMENU_FOLDER\<%= @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
+
+!insertmacro MUI_STARTMENU_WRITE_END
+
+WriteRegStr HKLM \
+    "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>" \
+    "DisplayName" "<%= @package.name %>"
+WriteRegStr HKLM \
+    "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>" \
+    "UninstallString" "$INSTDIR\Uninstall.exe"
+WriteRegDWORD HKLM \
+    "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>" \
+    "NoModify" 1
+WriteRegDWORD HKLM \
+    "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>" \
+    "NoRepair" 1
+
+; Check that the registry could be written, we only check one key,
+; but it should be sufficient...
+ReadRegStr $MYTEMP "${MY_STARTMENUPAGE_REGISTRY_ROOT}" \
+    "${MY_STARTMENUPAGE_REGISTRY_KEY}" \
+    "${MY_STARTMENUPAGE_REGISTRY_VALUENAME}"
+
+StrCmp $MYTEMP "" 0 done
+
+; Now we're done if we are a superuser. If the registry stuff failed, we
+; do the things below...
+
+WriteRegStr HKCU "${MY_STARTMENUPAGE_REGISTRY_KEY}" \
+    "${MY_STARTMENUPAGE_REGISTRY_VALUENAME}" \
+    "$STARTMENU_FOLDER"
+WriteRegStr HKCU \
+    "Software\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>" \
+    "DisplayName" "<%= @package.name %>"
+WriteRegStr HKCU \
+    "Software\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>" \
+    "UninstallString" "$INSTDIR\Uninstall.exe"
+WriteRegDWORD HKCU \
+    "Software\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>" \
+    "NoModify" 1
+WriteRegDWORD HKCU \
+    "Software\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>" \
+    "NoRepair" 1
+done:
+
+SectionEnd ; SecDriveBase
+
+Section "Desktop shortcut" SecDriveClutterDesktop
+SetShellVarContext All
+ClearErrors
+CreateShortCut "$DESKTOP\<%= @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
+IfErrors 0 continue_create
+SetShellVarContext current
+CreateShortCut "$DESKTOP\<%= @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
+continue_create:
+SectionEnd
+
+Section "QuickLaunch shortcut" SecDriveClutterQuickLaunch
+SetShellVarContext All
+ClearErrors
+CreateShortCut "$QUICKLAUNCH\<%= @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
+IfErrors 0 continue_create
+SetShellVarContext current
+CreateShortCut "$QUICKLAUNCH\<%= @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
+continue_create:
+SectionEnd
+SubSectionEnd
+
+;--------------------------------
+;Descriptions
+!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
+!insertmacro MUI_DESCRIPTION_TEXT ${SecDrive} $(DESC_SecDrive)
+!insertmacro MUI_DESCRIPTION_TEXT ${SecDriveBase} $(DESC_SecDriveBase)
+!insertmacro MUI_DESCRIPTION_TEXT ${SecDriveClutterDesktop} \
+    $(DESC_SecDriveClutterDesktop)
+!insertmacro MUI_DESCRIPTION_TEXT ${SecDriveClutterQuicklaunch} \
+    $(DESC_SecDriveClutterQuicklaunch)
+!insertmacro MUI_FUNCTION_DESCRIPTION_END
+
+;--------------------------------
+;Uninstaller Section
+
+; begin uninstall settings/section
+;UninstallText "This will uninstall <%= @package.name %> from your system"
+
+Section Uninstall
+SetShellVarContext All
+Delete "$DESKTOP\<%= @package.name %>.lnk"
+Delete "$QUICKLAUNCH\<%= @package.name %>.lnk"
+
+SetShellVarContext current
+Delete "$DESKTOP\<%= @package.name %>.lnk"
+Delete "$QUICKLAUNCH\<%= @package.name %>.lnk"
+RMDir /r "$INSTDIR"
+
+;Remove shortcut
+ReadRegStr $MYTEMP "${MY_STARTMENUPAGE_REGISTRY_ROOT}" \
+    "${MY_STARTMENUPAGE_REGISTRY_KEY}" \
+    "${MY_STARTMENUPAGE_REGISTRY_VALUENAME}"
+StrCmp $MYTEMP "" 0 end_try
+; Try HKCU instead...
+ReadRegStr $MYTEMP HKCU \
+    "${MY_STARTMENUPAGE_REGISTRY_KEY}" \
+    "${MY_STARTMENUPAGE_REGISTRY_VALUENAME}"
+; If this failed to, we have no shortcuts (eh?)
+StrCmp $MYTEMP "" noshortcuts
+end_try:
+SetShellVarContext All
+ClearErrors
+; If we cannot find the shortcut, switch to current user context
+GetFileTime "$SMPROGRAMS\$MYTEMP\<%= @package.name %>.lnk" $R1 $R2
+IfErrors 0 continue_delete
+;MessageBox MB_OK "Error removing file"
+SetShellVarContext current
+continue_delete:
+Delete "$SMPROGRAMS\$MYTEMP\<%= @package.name %>.lnk"
+RMDir "$SMPROGRAMS\$MYTEMP" ;Only if empty
+
+noshortcuts:
+; We delete both in HKCU and HKLM, we don't really know were they might be...
+DeleteRegKey /ifempty HKLM "${MY_STARTMENUPAGE_REGISTRY_KEY}"
+DeleteRegKey /ifempty HKCU "${MY_STARTMENUPAGE_REGISTRY_KEY}"
+DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>"
+DeleteRegKey HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>"
+DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "<%= @package.name %>"
+
+RMDir "$INSTDIR"
+
+ReadRegStr $MYTEMP HKLM "SOFTWARE\<%= @package.name %>\DefaultVersion" ""
+
+StrCmp $MYTEMP "${VERSION}" 0 done
+;MessageBox MB_OK $MYTEMP
+DeleteRegKey HKLM "SOFTWARE\<%= @package.name %>\DefaultVersion"
+
+done:
+;MessageBox MB_OK $MYTEMP
+
+SectionEnd ; end of uninstall section
+
+; eof

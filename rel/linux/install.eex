@@ -1,0 +1,39 @@
+#!/bin/sh
+#
+# $Id$
+#
+
+APP_NAME="<%= @package.name %>"
+
+if test x"$1" = x"" ; then
+    INSTALL_DIR="$HOME/$APP_NAME"
+else
+    INSTALL_DIR="$1/$APP_NAME"
+fi
+
+echo "Installing $APP_NAME  <%= @release.version %> in $INSTALL_DIR"
+mkdir -p $INSTALL_DIR
+tar cf - * | (cd $INSTALL_DIR; tar xf -)
+rm -f $INSTALL_DIR/install
+
+sed <<'EOF' -e "s^%ROOTDIR%^$INSTALL_DIR^" > $INSTALL_DIR/$APP_NAME.desktop
+[Desktop Entry]
+Type=Application
+Terminal=false
+Exec=%ROOTDIR%/<%= @package.name %> daemon -- %U
+Name=<%= @package.name_long %>
+GenericName=<%= @package.description %>
+Comment=<%= @package.description_long %>
+GenericName[en]=<%= @package.description %>
+Comment[en]=<%= @package.description_long %>
+Icon=%ROOTDIR%/lib/<%= @package.app_name %>-<%= @release.version %>/<%= @package.icon %>
+Categories=<%= @package.category_gnome %>
+EOF
+
+chmod +x $INSTALL_DIR/$APP_NAME.desktop $INSTALL_DIR/$APP_NAME
+mkdir -p $HOME/.local/share/applications/
+cp $INSTALL_DIR/$APP_NAME.desktop $HOME/.local/share/applications/
+mkdir -p $HOME/.config/autostart/
+cp $INSTALL_DIR/$APP_NAME.desktop $HOME/.config/autostart/
+$INSTALL_DIR/$APP_NAME
+exit 0;
