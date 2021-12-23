@@ -89,6 +89,7 @@ defmodule Desktop.Deployment.Tooling do
     |> String.split("\n")
     |> Enum.map(fn row ->
       case String.split(row, " ") do
+        [_, "=>", "not" | _] -> nil
         [_, "=>", path | _] -> path
         _other -> nil
       end
