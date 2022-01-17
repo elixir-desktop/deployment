@@ -26,7 +26,6 @@ defmodule Desktop.Deployment.Package do
         # Trying to remove .smp ending
         # evil binary editing (only works on 23.x)
         [erlexec] = wildcard(rel, "**/bin/erlexec")
-        File.chmod!(erlexec, Bitwise.bor(File.lstat!(erlexec).mode, 0o200))
         file_replace(erlexec, ".smp", <<0, 0, 0, 0>>)
 
         # Figuring out the result of our edits

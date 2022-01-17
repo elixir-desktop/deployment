@@ -1,11 +1,13 @@
 defmodule Desktop.Deployment.Tooling do
   @moduledoc false
   def file_replace(file, from, to) do
-    content =
-      File.read!(file)
-      |> String.replace(from, to)
+    orig = File.read!(file)
+    content = String.replace(orig, from, to)
 
-    File.write!(file, content)
+    if orig != content do
+      File.chmod!(file, Bitwise.bor(File.lstat!(file).mode, 0o200))
+      File.write!(file, content)
+    end
   end
 
   def wildcard(%Mix.Release{path: rel_path}, path) do
