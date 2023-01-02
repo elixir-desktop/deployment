@@ -156,8 +156,8 @@ defmodule Desktop.Deployment.Package do
     :file.set_cwd(String.to_charlist(rel_path))
 
     content = eval_eex(Path.join(windows_tools, "app.nsi.eex"), rel, pkg)
-    File.write!(Path.join(rel_path, "app.nsi"), content)
-    cmd!("makensis", ["-NOCD", "-DVERSION=#{vsn}", Path.join(rel_path, "app.nsi")])
+    File.write!(Path.join(build_root, "app.nsi"), content)
+    cmd!("makensis", ["-NOCD", "-DVERSION=#{vsn}", Path.join(build_root, "app.nsi")])
     :ok
   end
 

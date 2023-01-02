@@ -31,7 +31,7 @@ InstallDirRegKey HKLM "${MY_STARTMENUPAGE_REGISTRY_KEY}" ""
 
 ; Set the default start menu folder
 
-!define MUI_STARTMENUPAGE_DEFAULTFOLDER "<%= @package.name %>"
+!define MUI_STARTMENUPAGE_DEFAULTFOLDER "<%= @package.name_long || @package.name %>"
 
 !define MUI_ICON "<%= @release.path %>\lib\<%= @package.app_name %>-${VERSION}\priv\icon.ico"
 !define MUI_UNICON "<%= @release.path %>\lib\<%= @package.app_name %>-${VERSION}\priv\icon.ico"
