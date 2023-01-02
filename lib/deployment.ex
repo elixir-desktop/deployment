@@ -1,5 +1,6 @@
 defmodule Desktop.Deployment do
   alias Desktop.Deployment.Package
+  require Logger
   @moduledoc false
 
   def prepare_release(%Mix.Release{options: options} = rel) do
@@ -30,8 +31,15 @@ defmodule Desktop.Deployment do
 
     package =
       case config[:package] do
-        nil -> default_package(rel)
-        map -> struct!(default_package(rel), map)
+        nil ->
+          Logger.warn(
+            "There is not package config defined. Using the generic Elixir App descriptions."
+          )
+
+          default_package(rel)
+
+        map ->
+          struct!(default_package(rel), map)
       end
 
     package =

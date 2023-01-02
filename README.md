@@ -1,4 +1,58 @@
-# Deployment Scripts
+# Deployment Tasks
+
+These mix tasks generate binary installers for your Elixir-Desktop project in corresponding native formats. Currently supported output formats are:
+
+* Windows: `.exe` installer (NSIS based)
+* MacOS: `.dmg` download package
+* Linux: `.run` makeself installer.
+
+## Usage
+
+1. Add a new release to your project configuration that includes the `&Desktop.Deployment.generate_installer/1` steps
+2. Add the `package: package()` configuration with your app packaging information. If you don't provide these, default values will be used.
+3. Run `mix deployment` to generate the installer for your current OS
+
+```elixir
+  def project do
+    [
+      package: package(),
+      releases: [
+        default: [
+          applications: [runtime_tools: :permanent, ssl: :permanent],
+          steps: [:assemble, &Desktop.Deployment.generate_installer/1]
+        ],
+      ],
+    ]
+  end
+
+  def package() do
+    [
+      name: "MyApp",
+      name_long: "The most wonderfull App Ever",
+      description: "MyApp is an Elixir App for Desktop",
+      description_long: "MyApp for Desktop is powered by Phoenix LiveView",
+      icon: "priv/icon.png",
+      # https://developer.gnome.org/menu-spec/#additional-category-registry
+      category_gnome: "GNOME;GTK;Office;",
+      category_macos: "public.app-category.productivity",
+      identifier: "io.myapp.app",
+    ]
+  end  
+```
+
+## Installation
+
+The the package can be installed
+by adding `desktop_deployment` to your list of dependencies in `mix.exs`:
+
+```elixir
+def deps do
+  [
+    {:desktop_deployment, "~> 0.1", runtimes: false}
+  ]
+end
+```
+
 
 ## General notes
 

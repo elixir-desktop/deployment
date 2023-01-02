@@ -2,16 +2,19 @@ defmodule Desktop.Deployment.Package do
   @moduledoc false
   alias Desktop.Deployment.Package
   import Desktop.Deployment.Tooling
+  require Logger
 
   defstruct name: "ElixirApp",
             name_long: "The Elixir App",
-            description: "An Elixir Appp for Dekstop",
+            description: "An Elixir App for Dekstop",
             description_long: "An Elixir App for Desktop powered by Phoenix LiveView",
             icon: "priv/icon.png",
             # https://developer.gnome.org/menu-spec/#additional-category-registry
             category_gnome: "GNOME;GTK;Office;",
             category_macos: "public.app-category.productivity",
             identifier: "io.elixirdesktop.app",
+            # import options
+            import_inofitywait: false,
             # defined during the process
             app_name: nil,
             release: nil
@@ -70,6 +73,24 @@ defmodule Desktop.Deployment.Package do
         cmd!("cp", List.flatten(["-a", libs, priv(pkg)]))
 
       Linux ->
+        if pkg.import_inofitywait do
+          bin = System.find_executable("inotifywait")
+
+          if bin == nil do
+            IO.puts(
+              "import_inoftifywait: true was speccified but the `inotifywait` binary could not be found"
+            )
+
+            System.halt(1)
+          end
+
+          erst_bin_import!(rel, bin)
+
+          for lib <- linux_find_deps(bin) do
+            priv_import!(pkg, lib)
+          end
+        end
+
         wildcard(rel, "**/*.so")
         |> Enum.map(fn lib ->
           linux_find_deps(lib)
@@ -146,7 +167,13 @@ defmodule Desktop.Deployment.Package do
     content = eval_eex(Path.join(linux_tools, "install.eex"), rel, pkg)
     File.write!(Path.join(rel_path, "install"), content)
     File.chmod!(Path.join(rel_path, "install"), 0o755)
-    File.cp!(Path.join(linux_tools, "run"), Path.join(rel_path, pkg.name))
+
+    run_content = eval_eex(Path.join(linux_tools, "run.eex"), rel, pkg)
+    File.write!(Path.join(rel_path, pkg.name), run_content)
+    File.chmod!(Path.join(rel_path, pkg.name), 0o755)
+
+    # Remove the original release bin/ dir
+    File.rm_rf!(Path.join(rel_path, "bin"))
 
     :file.set_cwd(String.to_charlist(rel_path))
 

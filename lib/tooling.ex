@@ -37,9 +37,13 @@ defmodule Desktop.Deployment.Tooling do
     if not File.exists?(dst), do: File.cp!(src, dst)
   end
 
-  def dll_import!(%Mix.Release{path: path}, src) do
+  def dll_import!(%Mix.Release{} = rel, src) do
     # In windows the primary .exe directory is searched for missing dlls
     # (and there is no LD_LIBRARY_PATH)
+    erst_bin_import!(rel, src)
+  end
+
+  def erst_bin_import!(%Mix.Release{path: path}, src) do
     erts = Application.app_dir(:erts) |> Path.basename()
     bindir = Path.join([path, erts, "bin"])
     dst = Path.join(bindir, Path.basename(src))

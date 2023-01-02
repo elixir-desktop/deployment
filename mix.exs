@@ -21,7 +21,7 @@ defmodule Desktop.Deployment.MixProject do
 
   # Run "mix help compile.app" to learn about applications.
   def application do
-    [extra_applications: [:crypto, :eex]]
+    [extra_applications: [:crypto, :eex, :logger]]
   end
 
   defp aliases do
