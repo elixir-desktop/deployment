@@ -14,7 +14,7 @@ SetCompressorDictSize 64
 SetDatablockOptimize ON
 
 ; Folder selection page
-InstallDir "$PROGRAMFILES64\<%= @package.name %>"
+InstallDir "$PROGRAMFILES64\<%= @package.name_long || @package.name %>"
 
 ; Registry keys where start menu folder is stored
 !define MY_STARTMENUPAGE_REGISTRY_ROOT HKLM
@@ -33,8 +33,8 @@ InstallDirRegKey HKLM "${MY_STARTMENUPAGE_REGISTRY_KEY}" ""
 
 !define MUI_STARTMENUPAGE_DEFAULTFOLDER "<%= @package.name %>"
 
-!define MUI_ICON "..\..\..\..\priv\icon.ico"
-!define MUI_UNICON "..\..\..\..\priv\icon.ico"
+!define MUI_ICON "<%= @release.path %>\lib\<%= @package.app_name %>-${VERSION}\priv\icon.ico"
+!define MUI_UNICON "<%= @release.path %>\lib\<%= @package.app_name %>-${VERSION}\priv\icon.ico"
 
 ;--------------------------------
 ;Modern UI Configuration

@@ -53,21 +53,18 @@ def deps do
 end
 ```
 
-
-## General notes
-
-** Still raw WIP**
-
-All builds are done with Erlang 24:diode/beta and Elixir 1.11.4
-
-
 ## Deployment Strategies
 
 ### Windows -> NSIS
 
-All builds (specifically NIFs) are build using msys2, because it's mostly linux compatible but runs natively on windows without any helper libraries. Currently we're signing using a hardware token in two phases:
 
-1)  `build_win32.sh` The release candidates are built under Windows on a CI machine (both a .zip and a .exe file for tests)
+All builds (specifically NIFs) are built using msys2, because it's mostly linux compatible but runs natively on windows without any helper libraries. 
+
+0) Installing prerequsites
+  - msys2.org
+  - `pacman -S mingw-w64-x86_64-imagemagick mingw-w64-x86_64-nsis`
+
+1) `mix deployment` will generate the release binaries
     
 2) `mix win32sign` When ready we're using a Linux machine to sign the content's of the release .zip and re-package that into the final .exe
 

@@ -39,6 +39,7 @@ defmodule Desktop.Deployment.MixProject do
     [
       # Credo
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
+      {:libpe, "~> 1.1"},
       {:poison, "~> 3.0"}
     ]
   end

@@ -47,10 +47,11 @@ defmodule Desktop.Deployment.Package do
         File.rename!(erl, new_name)
 
         # Updating icon
-        rcedit =
-          Path.join([System.get_env("USERPROFILE"), "DistributedDrives/first/build/RCEDIT.exe"])
+        cmd!("convert", ["-resize", "64x64", pkg.icon, "icon.ico"])
+        |> IO.inspect()
+        priv_import!(pkg, "icon.ico")
 
-        cmd!(rcedit, ["/I", new_name, Path.join(priv(pkg), "icon.ico")])
+        :ok = Mix.Tasks.Pe.Update.run(["--set-icon", Path.join(priv(pkg), "icon.ico"), new_name])
 
         [elixir] = wildcard(rel, "**/elixir.bat")
         file_replace(elixir, "erl.exe", pkg.name <> ".exe")
@@ -138,9 +139,11 @@ defmodule Desktop.Deployment.Package do
     pkg
   end
 
-  defp windows_release(%Package{release: %Mix.Release{path: rel_path, version: vsn}} = pkg) do
+  defp windows_release(%Package{release: %Mix.Release{path: rel_path, version: vsn} = rel} = pkg) do
     build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
     out_file = Path.join(build_root, "#{pkg.name}-#{vsn}-win32.zip")
+    base = Mix.Project.deps_paths()[:desktop_deployment]
+    windows_tools = Path.absname("#{base}/rel/win32")
 
     File.rm(out_file)
 
@@ -151,7 +154,10 @@ defmodule Desktop.Deployment.Package do
     cmd!("powershell", ["Compress-Archive #{files} #{out_file}"])
 
     :file.set_cwd(String.to_charlist(rel_path))
-    cmd!("makensis", ["-NOCD", "-DVERSION=#{vsn}", "../../../../rel/win32/app.nsi"])
+
+    content = eval_eex(Path.join(windows_tools, "app.nsi.eex"), rel, pkg)
+    File.write!(Path.join(rel_path, "app.nsi"), content)
+    cmd!("makensis", ["-NOCD", "-DVERSION=#{vsn}", Path.join(rel_path, "app.nsi")])
     :ok
   end
 
