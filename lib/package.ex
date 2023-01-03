@@ -209,7 +209,8 @@ defmodule Desktop.Deployment.Package do
 
     content = eval_eex(Path.join(mac_tools, "Info.plist.eex"), rel, pkg)
     File.write!(Path.join(contents, "Info.plist"), content)
-    cp!(Path.join(mac_tools, "run"), bindir)
+    content_run = eval_eex(Path.join(mac_tools, "run.eex"), rel, pkg)
+    File.write!(Path.join(bindir, "run"), content_run)
 
     File.ls!(path)
     |> Enum.each(fn file ->
@@ -224,9 +225,8 @@ defmodule Desktop.Deployment.Package do
     if not File.exists?(icon_path) do
       iconset = Path.join(build_root, "icons.iconset")
       File.mkdir_p!(iconset)
-      File.cp!(pkg.icon, Path.join(iconset, "icon_512x512@2x.png"))
-      File.cp!("priv/icon_512x512.png", Path.join(iconset, "icon_512x512.png"))
-
+      cmd!("convert", ["-resize", "1024x1024", pkg.icon, Path.join(iconset, "icon_512x512@2x.png")])
+      cmd!("convert", ["-resize", "512x512", pkg.icon, Path.join(iconset, "icon_512x512.png")])
       cmd!("iconutil", ["-c", "icns", iconset, "-o", Path.join(mac_tools, "icons.icns")])
     end
 
