@@ -13,117 +13,119 @@ defmodule Desktop.Deployment.Package do
             category_gnome: "GNOME;GTK;Office;",
             category_macos: "public.app-category.productivity",
             identifier: "io.elixirdesktop.app",
+            # additional ELIXIR_ERL_OPTIONS for boot
+            elixir_erl_options: "",
             # import options
             import_inofitywait: false,
             # defined during the process
             app_name: nil,
             release: nil
 
-  def copy_extra_files(%Package{release: %Mix.Release{path: rel_path} = rel} = pkg) do
-    case wildcard(rel, "**/beam.smp") do
-      [beam] ->
-        # Chaning emulator name
-        [erl] = wildcard(rel, "**/bin/erl")
-        file_replace(erl, "EMU=beam", "EMU=#{pkg.name}")
+  def copy_extra_files(%Package{} = pkg) do
+    copy_extra_files(os(), pkg)
+  end
 
-        # Trying to remove .smp ending
-        # evil binary editing (only works on 23.x)
-        [erlexec] = wildcard(rel, "**/bin/erlexec")
-        file_replace(erlexec, ".smp", <<0, 0, 0, 0>>)
+  defp copy_extra_files(Windows, %Package{release: %Mix.Release{path: rel_path} = rel} = pkg) do
+    # Windows renaming exectuable
+    [erl] = wildcard(rel, "**/erl.exe")
+    new_name = Path.join(Path.dirname(erl), pkg.name <> ".exe")
+    File.rename!(erl, new_name)
 
-        # Figuring out the result of our edits
-        # and renaming beam
-        System.put_env("EMU", pkg.name)
-        name = cmd!(erlexec, ["-emu_name_exit"])
+    # Updating icon
+    cmd!("convert", ["-resize", "64x64", pkg.icon, "icon.ico"])
 
-        # Evil binary removal of "Erlang", needs same length!
-        file_replace(beam, "Erlang", binary_part(pkg.name <> <<0, 0, 0, 0, 0, 0>>, 0, 6))
-        File.rename!(beam, Path.join(Path.dirname(beam), name))
+    priv_import!(pkg, "icon.ico")
 
-      [] ->
-        # Windows renaming exectuable
-        [erl] = wildcard(rel, "**/erl.exe")
-        new_name = Path.join(Path.dirname(erl), pkg.name <> ".exe")
-        File.rename!(erl, new_name)
+    :ok = Mix.Tasks.Pe.Update.run(["--set-icon", Path.join(priv(pkg), "icon.ico"), new_name])
 
-        # Updating icon
-        cmd!("convert", ["-resize", "64x64", pkg.icon, "icon.ico"])
-        |> IO.inspect()
-        priv_import!(pkg, "icon.ico")
+    [elixir] = wildcard(rel, "**/elixir.bat")
+    file_replace(elixir, "erl.exe", pkg.name <> ".exe")
 
-        :ok = Mix.Tasks.Pe.Update.run(["--set-icon", Path.join(priv(pkg), "icon.ico"), new_name])
-
-        [elixir] = wildcard(rel, "**/elixir.bat")
-        file_replace(elixir, "erl.exe", pkg.name <> ".exe")
+    for redist <- ~w(vcredist_x64.exe MicrosoftEdgeWebview2Setup.exe) do
+      base_import!(
+        rel,
+        Path.join([System.get_env("USERPROFILE"), "DistributedDrives/first/build", redist])
+      )
     end
 
-    case os() do
-      MacOS ->
-        # find . -iname "*.so" | xargs otool -L | grep local | awk '{print $1}'
-        priv_import!(pkg, "/usr/local/opt/openssl@1.1/lib/libcrypto.1.1.dylib")
-        priv_import!(pkg, "/usr/local/lib/libgmp.10.dylib")
-        priv_import!(pkg, "/usr/local/opt/jpeg/lib/libjpeg.9.dylib")
-        priv_import!(pkg, "/usr/local/opt/libpng/lib/libpng16.16.dylib")
-        priv_import!(pkg, "/usr/local/opt/libtiff/lib/libtiff.5.dylib")
+    # Windows has wxwidgets & openssl statically linked
+    dll_import!(rel, "C:\\msys64\\mingw64\\bin\\libgmp-10.dll")
 
-        libs =
-          :filelib.wildcard('/Users/administrator/projects/wxWidgets/lib/libwx_*')
-          |> Enum.map(&List.to_string/1)
+    wildcard(rel, "**/*.so")
+    |> Enum.each(fn name ->
+      new_name = Path.join(Path.dirname(name), Path.basename(name, ".so") <> ".dll")
+      File.rename!(name, new_name)
+    end)
 
-        # This copies links as links
-        cmd!("cp", List.flatten(["-a", libs, priv(pkg)]))
+    base = Mix.Project.deps_paths()[:desktop_deployment]
+    win_tools = Path.absname("#{base}/rel/win32")
+    cp!(Path.join(win_tools, "run.vbs"), rel_path)
+    cp!(Path.join(win_tools, "run.bat"), rel_path)
 
-      Linux ->
-        if pkg.import_inofitywait do
-          bin = System.find_executable("inotifywait")
+    pkg
+  end
 
-          if bin == nil do
-            IO.puts(
-              "import_inoftifywait: true was speccified but the `inotifywait` binary could not be found"
-            )
+  defp copy_extra_files(os, %Package{release: %Mix.Release{} = rel} = pkg)
+       when os == Linux or os == MacOS do
+    [beam] = wildcard(rel, "**/beam.smp")
+    # Chaning emulator name
+    [erl] = wildcard(rel, "**/bin/erl")
+    file_replace(erl, "EMU=beam", "EMU=#{pkg.name}")
 
-            System.halt(1)
-          end
+    # Trying to remove .smp ending
+    # unsafe binary editing (confirmed to work on 23.x)
+    [erlexec] = wildcard(rel, "**/bin/erlexec")
+    file_replace(erlexec, ".smp", <<0, 0, 0, 0>>)
 
-          erst_bin_import!(rel, bin)
+    # Figuring out the result of our edits
+    # and renaming beam
+    System.put_env("EMU", pkg.name)
+    name = cmd!(erlexec, ["-emu_name_exit"])
 
-          for lib <- linux_find_deps(bin) do
-            priv_import!(pkg, lib)
-          end
-        end
+    # Unsafe binary removal of "Erlang", needs same length!
+    file_replace(beam, "Erlang", binary_part(pkg.name <> <<0, 0, 0, 0, 0, 0>>, 0, 6))
+    File.rename!(beam, Path.join(Path.dirname(beam), name))
 
-        wildcard(rel, "**/*.so")
-        |> Enum.map(fn lib ->
-          linux_find_deps(lib)
-        end)
-        |> List.flatten()
-        |> MapSet.new()
-        |> MapSet.to_list()
-        |> Enum.each(fn lib ->
-          priv_import!(pkg, lib)
-        end)
+    # Linux ->
+    if os == MacOS do
+      # find . -iname "*.so" | xargs otool -L | grep local | awk '{print $1}'
+      priv_import!(pkg, "/usr/local/opt/openssl@1.1/lib/libcrypto.1.1.dylib")
+      priv_import!(pkg, "/usr/local/lib/libgmp.10.dylib")
+      priv_import!(pkg, "/usr/local/opt/jpeg/lib/libjpeg.9.dylib")
+      priv_import!(pkg, "/usr/local/opt/libpng/lib/libpng16.16.dylib")
+      priv_import!(pkg, "/usr/local/opt/libtiff/lib/libtiff.5.dylib")
 
-      Windows ->
-        for redist <- ~w(vcredist_x64.exe MicrosoftEdgeWebview2Setup.exe) do
-          base_import!(
-            rel,
-            Path.join([System.get_env("USERPROFILE"), "DistributedDrives/first/build", redist])
+      libs =
+        :filelib.wildcard('/Users/administrator/projects/wxWidgets/lib/libwx_*')
+        |> Enum.map(&List.to_string/1)
+
+      # This copies links as links
+      cmd!("cp", List.flatten(["-a", libs, priv(pkg)]))
+    else
+      if pkg.import_inofitywait do
+        bin = System.find_executable("inotifywait")
+
+        if bin == nil do
+          IO.puts(
+            "import_inoftifywait: true was speccified but the `inotifywait` binary could not be found"
           )
+
+          System.halt(1)
         end
 
-        # Windows has wxwidgets & openssl statically linked
-        dll_import!(rel, "C:\\msys64\\mingw64\\bin\\libgmp-10.dll")
+        erst_bin_import!(rel, bin)
 
-        wildcard(rel, "**/*.so")
-        |> Enum.each(fn name ->
-          new_name = Path.join(Path.dirname(name), Path.basename(name, ".so") <> ".dll")
-          File.rename!(name, new_name)
-        end)
+        for lib <- linux_find_deps(bin) do
+          priv_import!(pkg, lib)
+        end
+      end
 
-        base = Mix.Project.deps_paths()[:desktop_deployment]
-        win_tools = Path.absname("#{base}/rel/win32")
-        cp!(Path.join(win_tools, "run.vbs"), rel_path)
-        cp!(Path.join(win_tools, "run.bat"), rel_path)
+      wildcard(rel, "**/*.so")
+      |> Enum.map(fn lib -> linux_find_deps(lib) end)
+      |> List.flatten()
+      |> MapSet.new()
+      |> MapSet.to_list()
+      |> Enum.each(fn lib -> priv_import!(pkg, lib) end)
     end
 
     pkg
@@ -225,7 +227,14 @@ defmodule Desktop.Deployment.Package do
     if not File.exists?(icon_path) do
       iconset = Path.join(build_root, "icons.iconset")
       File.mkdir_p!(iconset)
-      cmd!("convert", ["-resize", "1024x1024", pkg.icon, Path.join(iconset, "icon_512x512@2x.png")])
+
+      cmd!("convert", [
+        "-resize",
+        "1024x1024",
+        pkg.icon,
+        Path.join(iconset, "icon_512x512@2x.png")
+      ])
+
       cmd!("convert", ["-resize", "512x512", pkg.icon, Path.join(iconset, "icon_512x512.png")])
       cmd!("iconutil", ["-c", "icns", iconset, "-o", Path.join(mac_tools, "icons.icns")])
     end

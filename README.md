@@ -1,4 +1,4 @@
-# Deployment Tasks
+# Generating Installers
 
 These mix tasks generate binary installers for your Elixir-Desktop project in corresponding native formats. Currently supported output formats are:
 
@@ -10,7 +10,7 @@ These mix tasks generate binary installers for your Elixir-Desktop project in co
 
 1. Add a new release to your project configuration that includes the `&Desktop.Deployment.generate_installer/1` steps
 2. Add the `package: package()` configuration with your app packaging information. If you don't provide these, default values will be used.
-3. Run `mix deployment` to generate the installer for your current OS
+3. Run `mix desktop.installer` to generate the installer for your current OS
 
 ```elixir
   def project do
@@ -100,13 +100,9 @@ To run either you will need a macos development account. There are two environme
 
 ### Linux -> makeself
 
-Builds are done on raspberyy pis for arm64 & arm32, on ubuntu for x86_64.
-
-1) `build_linux.sh`
-
 #### Known Issues / Comments
 
-* wxWidgets notifications+taskbar support is really varying accross distributions. Currently we're trying to replace wxWidgets for taskbar with a pure Elixir dbus implementation -- will see where that get's us.
+* wxWidgets notifications+taskbar support is really varying accross distributions. Currently we have a pure Elixir dbus implementation.
 
 * Getting distribution independent linux binaries is really though. Main issues have been library dependencies of different versions. Future thoughts for this:
     * Switch to AppImage

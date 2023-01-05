@@ -1,4 +1,4 @@
-defmodule Mix.Tasks.Deployment do
+defmodule Mix.Tasks.Desktop.Installer do
   use Mix.Task
   # import Desktop.Deployment.Tooling
   @moduledoc false
@@ -13,7 +13,7 @@ defmodule Mix.Tasks.Deployment do
 
     if release == nil do
       IO.puts("""
-        Desktop.Deployment couldn't find a release steps configured
+        Desktop.Installer couldn't find a release steps configured
         to include the Deployment task `&Desktop.Deployment.generate_installer/1`.
 
         Add the `generate_installer/1` callback at least to one of your

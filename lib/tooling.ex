@@ -100,10 +100,13 @@ defmodule Desktop.Deployment.Tooling do
         _other -> nil
       end
     end)
-    |> Enum.filter(&is_binary/1)
     |> Enum.filter(fn lib ->
-      name = hd(String.split(Path.basename(lib), "."))
-      name not in linux_builtin()
+      if is_binary(lib) do
+        name = hd(String.split(Path.basename(lib), "."))
+        name not in linux_builtin()
+      else
+        false
+      end
     end)
   end
 
