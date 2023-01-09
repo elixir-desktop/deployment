@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string><%= @package.name %></string>
+	<string><%= @package.name_long || @package.name %></string>
 	<key>CFBundleDisplayName</key>
-	<string><%= @package.name %></string>
+	<string><%= @package.name_long || @package.name %></string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>English</string>
 	<key>CFBundleExecutable</key>

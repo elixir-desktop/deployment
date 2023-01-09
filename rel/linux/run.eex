@@ -1,11 +1,20 @@
 #!/bin/bash
 set -e
 pushd `dirname $0` > /dev/null
+<%= if Desktop.Deployment.Tooling.os() == MacOS do %>
+export RELEASE_ROOT=`pwd -P`/../Resources
+if [ -z "$1" ]; then
+    set -- start "$@"
+fi
+<% else %>
 export RELEASE_ROOT=`pwd -P`
 if [ -z "$1" ]; then
     set -- daemon "$@"
 fi
+<% end %>
 
+# https://github.com/reflex-frp/reflex-platform/issues/735
+export WEBKIT_DISABLE_COMPOSITING_MODE=1
 export RELEASE_VSN="${RELEASE_VSN:-"$(cut -d' ' -f2 "$RELEASE_ROOT/releases/start_erl.data")"}"
 export RELEASE_COMMAND="$1"
 shift

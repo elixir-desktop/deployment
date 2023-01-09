@@ -198,6 +198,7 @@ defmodule Desktop.Deployment.Package do
 
   defp mac_release(%Package{release: %Mix.Release{path: path} = rel} = pkg) do
     base = Mix.Project.deps_paths()[:desktop_deployment]
+    linux_tools = Path.absname("#{base}/rel/linux")
     mac_tools = Path.absname("#{base}/rel/macosx")
 
     build_root = Path.join([path, "..", ".."]) |> Path.expand()
@@ -211,7 +212,7 @@ defmodule Desktop.Deployment.Package do
 
     content = eval_eex(Path.join(mac_tools, "Info.plist.eex"), rel, pkg)
     File.write!(Path.join(contents, "Info.plist"), content)
-    content_run = eval_eex(Path.join(mac_tools, "run.eex"), rel, pkg)
+    content_run = eval_eex(Path.join(linux_tools, "run.eex"), rel, pkg)
     File.write!(Path.join(bindir, "run"), content_run)
 
     File.ls!(path)
