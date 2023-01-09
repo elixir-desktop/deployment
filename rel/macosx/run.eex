@@ -1,6 +1,0 @@
-#!/bin/sh
-pushd `dirname $0` > /dev/null
-export APPDIR=`pwd -P`
-ROOTDIR=$(dirname "$APPDIR")/Resources
-BINDIR=$ROOTDIR/bin
-exec "$BINDIR/<%= @release.name %>" start ${1+"$@"}
