@@ -90,6 +90,20 @@ defmodule Desktop.Deployment.Tooling do
     String.trim_trailing(ret)
   end
 
+  def macos_find_deps(object) do
+    cmd!("otool", ["-L", object])
+    |> String.split("\n")
+    |> Enum.map(fn row ->
+      case String.split(row, " ") do
+        [path | _] -> String.trim(path)
+        _other -> nil
+      end
+    end)
+    |> Enum.filter(fn lib ->
+      is_binary(lib) and String.starts_with?(lib, "/usr/local/opt/")
+    end)
+  end
+
   def linux_find_deps(object) do
     cmd!("ldd", [object])
     |> String.split("\n")

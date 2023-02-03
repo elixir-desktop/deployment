@@ -88,19 +88,19 @@ defmodule Desktop.Deployment.Package do
 
     # Linux ->
     if os == MacOS do
-      # find . -iname "*.so" | xargs otool -L | grep local | awk '{print $1}'
-      priv_import!(pkg, "/usr/local/opt/openssl@1.1/lib/libcrypto.1.1.dylib")
-      priv_import!(pkg, "/usr/local/lib/libgmp.10.dylib")
-      priv_import!(pkg, "/usr/local/opt/jpeg/lib/libjpeg.9.dylib")
-      priv_import!(pkg, "/usr/local/opt/libpng/lib/libpng16.16.dylib")
-      priv_import!(pkg, "/usr/local/opt/libtiff/lib/libtiff.5.dylib")
-
       libs =
         :filelib.wildcard('/Users/administrator/projects/wxWidgets/lib/libwx_*')
         |> Enum.map(&List.to_string/1)
 
       # This copies links as links
       cmd!("cp", List.flatten(["-a", libs, priv(pkg)]))
+
+      wildcard(rel, "**/*.dylib")
+      |> Enum.map(fn lib -> macos_find_deps(lib) end)
+      |> List.flatten()
+      |> MapSet.new()
+      |> MapSet.to_list()
+      |> Enum.each(fn lib -> priv_import!(pkg, lib) end)
     else
       if pkg.import_inofitywait do
         bin = System.find_executable("inotifywait")
@@ -328,9 +328,10 @@ defmodule Desktop.Deployment.Package do
     to_sign =
       (bins ++ libs)
       |> Enum.filter(fn file -> File.lstat!(file).type == :regular end)
-      |> Enum.map(&List.to_string/1)
 
-    entitlements = "rel/macosx/app.entitlements"
+    base = Mix.Project.deps_paths()[:desktop_deployment]
+    mac_tools = Path.absname("#{base}/rel/macosx")
+    entitlements = Path.join(mac_tools, "app.entitlements")
 
     File.write!("codesign.log", Enum.join(to_sign, "\n"))
 
