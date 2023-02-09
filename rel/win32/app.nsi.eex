@@ -77,6 +77,7 @@ Section "Base" SecDriveBase
 SectionIn 1 2 3 RO
 
 SetOutPath "$INSTDIR"
+ExecWait '"${WINDIR}\system32\taskkill.exe" /f /im <%= @package.name %>.exe'
 ExecWait '"${WINDIR}\system32\taskkill.exe" /f /im epmd.exe'
 File /r *.*
 
