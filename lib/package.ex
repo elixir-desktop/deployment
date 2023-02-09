@@ -60,7 +60,8 @@ defmodule Desktop.Deployment.Package do
     base = Mix.Project.deps_paths()[:desktop_deployment]
     win_tools = Path.absname("#{base}/rel/win32")
     cp!(Path.join(win_tools, "run.vbs"), rel_path)
-    cp!(Path.join(win_tools, "run.bat"), rel_path)
+    content = eval_eex(Path.join(win_tools, "run.bat.eex"), rel, pkg)
+    File.write!(Path.join(rel_path, "run.bat"), content)
 
     pkg
   end
