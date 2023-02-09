@@ -1,4 +1,4 @@
-Name "<%= @package.name %> ${VERSION}"
+Name "<%= @package.name_long || @package.name %> ${VERSION}"
 
 !include "x64.nsh"
 !include "MUI.nsh"
@@ -61,18 +61,18 @@ InstallDirRegKey HKLM "${MY_STARTMENUPAGE_REGISTRY_KEY}" ""
 ;Description
 LangString DESC_SecDrive ${LANG_ENGLISH} "<%= @package.description %>"
 LangString DESC_SecDriveBase ${LANG_ENGLISH} \
-    "Basic <%= @package.name %> components"
+    "Basic <%= @package.name_long || @package.name %> components"
 LangString DESC_SecDriveClutterDesktop ${LANG_ENGLISH} \
-    "Create a shortcut to <%= @package.name %> on the Desktop."
+    "Create a shortcut to <%= @package.name_long || @package.name %> on the Desktop."
 LangString DESC_SecDriveClutterQuicklaunch ${LANG_ENGLISH} \
-    "Create a shortcut to <%= @package.name %> in the task bar."
+    "Create a shortcut to <%= @package.name_long || @package.name %> in the task bar."
 
 ; WordFunc
 !insertmacro VersionCompare
 ;--------------------------------
 ;Installer Sections
 
-SubSection /e "<%= @package.name %>" SecDrive
+SubSection /e "<%= @package.name_long || @package.name %>" SecDrive
 Section "Base" SecDriveBase
 SectionIn 1 2 3 RO
 
@@ -107,13 +107,13 @@ SetShellVarContext All
 ClearErrors
 CreateDirectory "$SMPROGRAMS\$STARTMENU_FOLDER"
 
-CreateShortCut "$SMPROGRAMS\$STARTMENU_FOLDER\<%= @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
+CreateShortCut "$SMPROGRAMS\$STARTMENU_FOLDER\<%= @package.name_long || @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
 
 !insertmacro MUI_STARTMENU_WRITE_END
 
 WriteRegStr HKLM \
     "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>" \
-    "DisplayName" "<%= @package.name %>"
+    "DisplayName" "<%= @package.name_long || @package.name %>"
 WriteRegStr HKLM \
     "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>" \
     "UninstallString" "$INSTDIR\Uninstall.exe"
@@ -140,7 +140,7 @@ WriteRegStr HKCU "${MY_STARTMENUPAGE_REGISTRY_KEY}" \
     "$STARTMENU_FOLDER"
 WriteRegStr HKCU \
     "Software\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>" \
-    "DisplayName" "<%= @package.name %>"
+    "DisplayName" "<%= @package.name_long || @package.name %>"
 WriteRegStr HKCU \
     "Software\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>" \
     "UninstallString" "$INSTDIR\Uninstall.exe"
@@ -157,20 +157,20 @@ SectionEnd ; SecDriveBase
 Section "Desktop shortcut" SecDriveClutterDesktop
 SetShellVarContext All
 ClearErrors
-CreateShortCut "$DESKTOP\<%= @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
+CreateShortCut "$DESKTOP\<%= @package.name_long || @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
 IfErrors 0 continue_create
 SetShellVarContext current
-CreateShortCut "$DESKTOP\<%= @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
+CreateShortCut "$DESKTOP\<%= @package.name_long || @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
 continue_create:
 SectionEnd
 
 Section "QuickLaunch shortcut" SecDriveClutterQuickLaunch
 SetShellVarContext All
 ClearErrors
-CreateShortCut "$QUICKLAUNCH\<%= @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
+CreateShortCut "$QUICKLAUNCH\<%= @package.name_long || @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
 IfErrors 0 continue_create
 SetShellVarContext current
-CreateShortCut "$QUICKLAUNCH\<%= @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
+CreateShortCut "$QUICKLAUNCH\<%= @package.name_long || @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
 continue_create:
 SectionEnd
 SubSectionEnd
@@ -190,16 +190,16 @@ SubSectionEnd
 ;Uninstaller Section
 
 ; begin uninstall settings/section
-;UninstallText "This will uninstall <%= @package.name %> from your system"
+;UninstallText "This will uninstall <%= @package.name_long || @package.name %> from your system"
 
 Section Uninstall
 SetShellVarContext All
-Delete "$DESKTOP\<%= @package.name %>.lnk"
-Delete "$QUICKLAUNCH\<%= @package.name %>.lnk"
+Delete "$DESKTOP\<%= @package.name_long || @package.name %>.lnk"
+Delete "$QUICKLAUNCH\<%= @package.name_long || @package.name %>.lnk"
 
 SetShellVarContext current
-Delete "$DESKTOP\<%= @package.name %>.lnk"
-Delete "$QUICKLAUNCH\<%= @package.name %>.lnk"
+Delete "$DESKTOP\<%= @package.name_long || @package.name %>.lnk"
+Delete "$QUICKLAUNCH\<%= @package.name_long || @package.name %>.lnk"
 RMDir /r "$INSTDIR"
 
 ;Remove shortcut
@@ -217,12 +217,12 @@ end_try:
 SetShellVarContext All
 ClearErrors
 ; If we cannot find the shortcut, switch to current user context
-GetFileTime "$SMPROGRAMS\$MYTEMP\<%= @package.name %>.lnk" $R1 $R2
+GetFileTime "$SMPROGRAMS\$MYTEMP\<%= @package.name_long || @package.name %>.lnk" $R1 $R2
 IfErrors 0 continue_delete
 ;MessageBox MB_OK "Error removing file"
 SetShellVarContext current
 continue_delete:
-Delete "$SMPROGRAMS\$MYTEMP\<%= @package.name %>.lnk"
+Delete "$SMPROGRAMS\$MYTEMP\<%= @package.name_long || @package.name %>.lnk"
 RMDir "$SMPROGRAMS\$MYTEMP" ;Only if empty
 
 noshortcuts:

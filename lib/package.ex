@@ -41,6 +41,10 @@ defmodule Desktop.Deployment.Package do
     [elixir] = wildcard(rel, "**/elixir.bat")
     file_replace(elixir, "erl.exe", pkg.name <> ".exe")
 
+    base = Mix.Project.deps_paths()[:desktop_deployment]
+    windows_tools = Path.absname("#{base}/rel/win32")
+    cp!(Path.join(windows_tools, "app.exe.manifest"), new_name <> ".manifest")
+
     for redist <- ~w(vcredist_x64.exe MicrosoftEdgeWebview2Setup.exe) do
       base_import!(
         rel,
@@ -57,10 +61,8 @@ defmodule Desktop.Deployment.Package do
       File.rename!(name, new_name)
     end)
 
-    base = Mix.Project.deps_paths()[:desktop_deployment]
-    win_tools = Path.absname("#{base}/rel/win32")
-    cp!(Path.join(win_tools, "run.vbs"), rel_path)
-    content = eval_eex(Path.join(win_tools, "run.bat.eex"), rel, pkg)
+    cp!(Path.join(windows_tools, "run.vbs"), rel_path)
+    content = eval_eex(Path.join(windows_tools, "run.bat.eex"), rel, pkg)
     File.write!(Path.join(rel_path, "run.bat"), content)
 
     pkg
