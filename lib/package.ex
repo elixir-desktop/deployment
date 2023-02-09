@@ -43,7 +43,7 @@ defmodule Desktop.Deployment.Package do
 
     base = Mix.Project.deps_paths()[:desktop_deployment]
     windows_tools = Path.absname("#{base}/rel/win32")
-    cp!(Path.join(windows_tools, "app.exe.manifest"), new_name <> ".manifest")
+    File.cp!(Path.join(windows_tools, "app.exe.manifest"), new_name <> ".manifest")
 
     for redist <- ~w(vcredist_x64.exe MicrosoftEdgeWebview2Setup.exe) do
       base_import!(
