@@ -77,8 +77,8 @@ Section "Base" SecDriveBase
 SectionIn 1 2 3 RO
 
 SetOutPath "$INSTDIR"
-ExecWait '"${WINDIR}\system32\taskkill.exe" /f /im <%= @package.name %>.exe'
-ExecWait '"${WINDIR}\system32\taskkill.exe" /f /im epmd.exe'
+ExecShellWait "" "$SysDir\taskkill.exe" "/f /im heart.exe" SW_HIDE
+ExecShellWait "" "$SysDir\taskkill.exe" "/f /im epmd.exe" SW_HIDE
 File /r *.*
 
 ExecWait '"$INSTDIR\vcredist_x64.exe" /install /norestart /silent'
