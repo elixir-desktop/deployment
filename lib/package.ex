@@ -149,11 +149,7 @@ defmodule Desktop.Deployment.Package do
     base = Mix.Project.deps_paths()[:desktop_deployment]
     windows_tools = Path.absname("#{base}/rel/win32")
 
-    :file.set_cwd(String.to_charlist(rel_path))
-    content = eval_eex(Path.join(windows_tools, "app.nsi.eex"), rel, pkg)
-    File.write!(Path.join(build_root, "app.nsi"), content)
-
-    signfun = win32_sign_function()
+    signfun = win32_sign_function(pkg)
 
     if signfun == nil do
       Mix.Shell.IO.info("Not signing secret detected. Skipping signing")
@@ -161,7 +157,18 @@ defmodule Desktop.Deployment.Package do
       win32_codesign(signfun, build_root)
     end
 
+    {:ok, cur} = :file.get_cwd()
+    :file.set_cwd(String.to_charlist(rel_path))
+    content = eval_eex(Path.join(windows_tools, "app.nsi.eex"), rel, pkg)
+    File.write!(Path.join(build_root, "app.nsi"), content)
     cmd!("makensis", ["-NOCD", "-DVERSION=#{vsn}", Path.join(build_root, "app.nsi")])
+    :file.set_cwd(cur)
+
+    if signfun != nil do
+      outfile = "#{pkg.name}-#{vsn}-win32.exe"
+      signfun.(Path.join([build_root, outfile]))
+    end
+
     :ok
   end
 
@@ -367,7 +374,19 @@ defmodule Desktop.Deployment.Package do
   end
 
   def win32_codesign(signfun, root) do
-    to_sign = wildcard(root, "**/*.exe") ++ wildcard(root, "**/*.dll")
+    exceptions = [
+      "msvcr120.dll",
+      "msvcp120.dll",
+      "webview2loader.dll",
+      "vcruntime140_clr0400.dll",
+      "microsoftedgewebview2setup.exe",
+      "vcredist_x64.exe"
+    ]
+
+    to_sign =
+      (wildcard(root, "**/*.exe") ++ wildcard(root, "**/*.dll"))
+      |> Enum.reject(fn filename -> String.downcase(Path.basename(filename)) in exceptions end)
+
     File.write!("codesign.log", Enum.join(to_sign, "\n"))
 
     for file <- to_sign do
@@ -375,23 +394,34 @@ defmodule Desktop.Deployment.Package do
     end
   end
 
-  def win32_sign_function() do
-    app_name = Mix.Project.config()[:name]
-    cert_path = System.get_env("WIN32_CERTIFICATE_PATH", "rel/win32/app_cert.pem")
-    key_path = System.get_env("WIN32_KEY_PATH", "rel/win32/app_key.pem")
+  def win32_sign_function(%Package{name: name, name_long: name_long}) do
+    app_name = name_long || name
+    cert_path = Path.absname(System.get_env("WIN32_CERTIFICATE_PATH", "rel/win32/app_cert.pem"))
+    key_path = Path.absname(System.get_env("WIN32_KEY_PATH", "rel/win32/app_key.pem"))
 
     token = System.get_env("WIN32_SAFENET_TOKEN")
     pass = System.get_env("WIN32_KEY_PASS")
 
-    cond do
-      pass != nil -> &win32_certificate_sign(app_name, cert_path, key_path, pass, &1)
-      token != nil -> &win32_keyfob_sign(app_name, cert_path, token, &1)
-      true -> nil
+    signfun =
+      cond do
+        pass != nil -> &win32_certificate_sign(app_name, cert_path, key_path, pass, &1)
+        token != nil -> &win32_keyfob_sign(app_name, cert_path, token, &1)
+        true -> nil
+      end
+
+    if signfun != nil do
+      fn filename ->
+        IO.puts("Signing #{filename}")
+        signfun.(filename)
+        File.rename!("#{filename}.tmp", filename)
+        # There is a funny comments about waiting between signing requests
+        # on the official microsoft docs, so we're doing that here.
+        Process.sleep(5_000)
+      end
     end
   end
 
   def win32_certificate_sign(app_name, cert_path, key_path, pass, filename) do
-    tmp = "#{filename}.out"
     # app.pem from sectigo cert `openssl x509 -in app_cert.p12 -inform DER -out app_cert.pem`
     # app_key.pem from sectigo
     cmd!("osslsigncode", [
@@ -409,28 +439,39 @@ defmodule Desktop.Deployment.Package do
       "-in",
       filename,
       "-out",
-      tmp
+      "#{filename}.tmp"
     ])
   end
 
   def win32_keyfob_sign(app_name, cert_path, token, filename) do
-    tmp = "#{filename}.out"
-
     # pkcs11.so from  https://github.com/OpenSC/libp11.git @ b02940e7dcde8026a3e120fdf42921b06e8f9ee9
     # libeToken.so.10 from https://support.globalsign.com/ssl/ssl-certificates-installation/safenet-drivers
     # app.der from `pkcs11-tool --module /usr/lib/libeToken.so --id 0ff482e6569909c51ef69aabe88c659e89c32a27 --read-object --type cert --output-file app.der`
     # app.pem from `openssl x509 -in app.der -inform DER -out app.pem`
     cmd!(
       "osslsigncode",
-      ~w(sign -verbose -pkcs11engine /home/dominicletz/projects/libp11/src/.libs/pkcs11.so
-        -pkcs11module /usr/lib/libeToken.so.10 -h sha256 -n #{app_name} -t https://timestamp.sectigo.com
-        -certs #{cert_path} -pass #{token} -in #{filename} -out #{tmp})
+      [
+        "sign",
+        "-verbose",
+        "-pkcs11engine",
+        "#{System.user_home!()}/projects/libp11/src/.libs/pkcs11.so",
+        "-pkcs11module",
+        "/usr/lib/libeToken.so.10",
+        "-h",
+        "sha256",
+        "-n",
+        app_name,
+        "-t",
+        "https://timestamp.sectigo.com",
+        "-certs",
+        cert_path,
+        "-pass",
+        token,
+        "-in",
+        filename,
+        "-out",
+        "#{filename}.tmp"
+      ]
     )
-
-    IO.puts("Signing #{filename}")
-    File.rename!(tmp, filename)
-    # There is a funny comments about waiting between signing requests
-    # on the official microsoft docs, so we're doing that here.
-    Process.sleep(15_000)
   end
 end

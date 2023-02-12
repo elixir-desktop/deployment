@@ -57,16 +57,15 @@ end
 
 ### Windows -> NSIS
 
-
 All builds (specifically NIFs) are built using msys2, because it's mostly linux compatible but runs natively on windows without any helper libraries. 
 
 0) Installing prerequsites
   - msys2.org
-  - `pacman -S mingw-w64-x86_64-imagemagick mingw-w64-x86_64-nsis`
+  - `pacman -S mingw-w64-x86_64-imagemagick mingw-w64-x86_64-nsis mingw-w64-x86_64-nsis mingw-w64-x86_64-osslsigncode mingw-w64-x86_64-openssl`
 
 1) `mix deployment` will generate the release binaries
-    
-2) `mix win32sign` When ready we're using a Linux machine to sign the content's of the release .zip and re-package that into the final .exe
+
+To support windows code signing the user has to create two certificate files `app_key.pem` and `app_key.pem` (e.g. get from sectigo) and put them into the `rel/win32/` subdirectory. 
 
 #### Known Issues / Comments
 

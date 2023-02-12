@@ -85,6 +85,7 @@ defmodule Desktop.Deployment.Tooling do
   end
 
   def cmd!(cmd, args) do
+    args = Enum.map(args, fn arg -> "#{arg}" end)
     IO.puts("Running: #{cmd} #{Enum.join(args, " ")}")
     {ret, 0} = System.cmd(cmd, args)
     String.trim_trailing(ret)
