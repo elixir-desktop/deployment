@@ -36,14 +36,14 @@ defmodule Desktop.Deployment.Package do
 
     priv_import!(pkg, "icon.ico")
 
-    :ok = Mix.Tasks.Pe.Update.run(["--set-icon", Path.join(priv(pkg), "icon.ico"), new_name])
+    icon = Path.join(priv(pkg), "icon.ico")
+    base = Mix.Project.deps_paths()[:desktop_deployment]
+    windows_tools = Path.absname("#{base}/rel/win32")
+    manifest = Path.join(windows_tools, "app.exe.manifest")
+    :ok = Mix.Tasks.Pe.Update.run(["--set-icon", icon, "--set-manifest", manifest, new_name])
 
     [elixir] = wildcard(rel, "**/elixir.bat")
     file_replace(elixir, "erl.exe", pkg.name <> ".exe")
-
-    base = Mix.Project.deps_paths()[:desktop_deployment]
-    windows_tools = Path.absname("#{base}/rel/win32")
-    File.cp!(Path.join(windows_tools, "app.exe.manifest"), new_name <> ".manifest")
 
     for redist <- ~w(vcredist_x64.exe MicrosoftEdgeWebview2Setup.exe) do
       base_import!(
