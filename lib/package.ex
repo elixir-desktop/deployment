@@ -21,7 +21,13 @@ defmodule Desktop.Deployment.Package do
             app_name: nil,
             release: nil
 
-  def copy_extra_files(%Package{} = pkg) do
+  def copy_extra_files(%Package{release: %Mix.Release{path: rel_path, version: vsn} = rel} = pkg) do
+    base = Mix.Project.deps_paths()[:desktop_deployment]
+    vm_args = Path.absname("#{base}/rel/vm.args.eex")
+    content = eval_eex(vm_args, rel, pkg)
+    vm_args_out = Path.join([rel_path, "releases", vsn, "vm.args"])
+    File.write!(vm_args_out, content)
+
     copy_extra_files(os(), pkg)
   end
 
