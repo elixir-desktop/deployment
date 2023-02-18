@@ -104,7 +104,7 @@ defmodule Desktop.Deployment.Package do
       # This copies links as links
       cmd!("cp", List.flatten(["-a", libs, priv(pkg)]))
 
-      wildcard(rel, "**/*.dylib")
+      (wildcard(rel, "**/*.dylib") ++ wildcard(rel, "**/*.so"))
       |> Enum.map(fn lib -> macos_find_deps(lib) end)
       |> List.flatten()
       |> MapSet.new()
