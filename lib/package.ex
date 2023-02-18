@@ -229,6 +229,7 @@ defmodule Desktop.Deployment.Package do
     File.write!(Path.join(contents, "Info.plist"), content)
     content_run = eval_eex(Path.join(linux_tools, "run.eex"), rel, pkg)
     File.write!(Path.join(bindir, "run"), content_run)
+    File.chmod!(Path.join(bindir, "run"), 0o755)
 
     File.ls!(path)
     |> Enum.each(fn file ->
