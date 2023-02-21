@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 pushd `dirname $0` > /dev/null
+ulimit -n 10000
 <%= if Desktop.Deployment.Tooling.os() == MacOS do %>
 export RELEASE_ROOT=`pwd -P`/../Resources
 if [ -z "$1" ]; then
