@@ -95,20 +95,9 @@ defmodule Desktop.Deployment.Package do
     file_replace(beam, "Erlang", binary_part(pkg.name <> <<0, 0, 0, 0, 0, 0>>, 0, 6))
     File.rename!(beam, Path.join(Path.dirname(beam), name))
 
-    # Linux ->
     if os == MacOS do
-      libs =
-        :filelib.wildcard('/Users/administrator/projects/wxWidgets/lib/libwx_*')
-        |> Enum.map(&List.to_string/1)
-
-      # This copies links as links
-      cmd!("cp", List.flatten(["-a", libs, priv(pkg)]))
-
-      (wildcard(rel, "**/*.dylib") ++ wildcard(rel, "**/*.so"))
-      |> Enum.map(fn lib -> macos_find_deps(lib) end)
-      |> List.flatten()
-      |> MapSet.new()
-      |> MapSet.to_list()
+      find_all_deps(os, wildcard(rel, "**/*.dylib") ++ wildcard(rel, "**/*.so"))
+      # |> IO.inspect(label: "all_deps")
       |> Enum.each(fn lib -> priv_import!(pkg, lib) end)
     else
       if pkg.import_inofitywait do
@@ -124,16 +113,12 @@ defmodule Desktop.Deployment.Package do
 
         erst_bin_import!(rel, bin)
 
-        for lib <- linux_find_deps(bin) do
+        for lib <- find_deps(os, bin) do
           priv_import!(pkg, lib)
         end
       end
 
-      wildcard(rel, "**/*.so")
-      |> Enum.map(fn lib -> linux_find_deps(lib) end)
-      |> List.flatten()
-      |> MapSet.new()
-      |> MapSet.to_list()
+      find_all_deps(os, wildcard(rel, "**/*.so"))
       |> Enum.each(fn lib -> priv_import!(pkg, lib) end)
     end
 

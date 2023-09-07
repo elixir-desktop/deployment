@@ -91,21 +91,44 @@ defmodule Desktop.Deployment.Tooling do
     String.trim_trailing(ret)
   end
 
-  def macos_find_deps(object) do
+  def find_all_deps(os, new_objects, old_objects \\ MapSet.new())
+
+  def find_all_deps(_os, [], _old_objects) do
+    []
+  end
+
+  def find_all_deps(os, new_objects, old_objects) do
+    new_objects = MapSet.new(new_objects)
+    old_objects = MapSet.union(new_objects, old_objects)
+
+    result =
+      new_objects
+      |> Enum.map(fn lib -> find_deps(os, lib) end)
+      |> List.flatten()
+      |> MapSet.new()
+      |> MapSet.difference(old_objects)
+      |> MapSet.to_list()
+
+    result ++ find_all_deps(os, result, old_objects)
+  end
+
+  def find_deps(MacOS, object) do
+    cwd = File.cwd!()
+
     cmd!("otool", ["-L", object])
     |> String.split("\n")
     |> Enum.map(fn row ->
       case String.split(row, " ") do
-        [path | _] -> String.trim(path)
+        [path | _] -> String.trim(path) |> String.trim(":")
         _other -> nil
       end
     end)
     |> Enum.filter(fn lib ->
-      is_binary(lib) and String.starts_with?(lib, "/usr/local/opt/")
+      is_binary(lib) and (String.starts_with?(lib, "/usr/local/opt/") or String.starts_with?(lib, "/Users/")) and not String.starts_with?(lib, cwd)
     end)
   end
 
-  def linux_find_deps(object) do
+  def find_deps(Linux, object) do
     cmd!("ldd", [object])
     |> String.split("\n")
     |> Enum.map(fn row ->
