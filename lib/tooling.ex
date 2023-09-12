@@ -242,7 +242,6 @@ defmodule Desktop.Deployment.Tooling do
     "libwayland-cursor",
     "libwayland-egl",
     "libwayland-server",
-    "libwebkit2gtk-4",
     "libwoff2common",
     "libwoff2dec",
     "libX11-xcb",
