@@ -34,6 +34,7 @@ defmodule Desktop.Deployment.Tooling do
   def priv_import!(pkg, src) do
     # Copying libraries to app_name-vsn/priv and adding that to (DY)LD_LIBRARY_PATH
     dst = Path.join(priv(pkg), Path.basename(src))
+    File.mkdir_p(priv(pkg))
     if not File.exists?(dst), do: File.cp!(src, dst)
   end
 
