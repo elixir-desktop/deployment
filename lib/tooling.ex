@@ -243,8 +243,6 @@ defmodule Desktop.Deployment.Tooling do
     "libwayland-egl",
     "libwayland-server",
     "libwebkit2gtk-4",
-    "libwebp",
-    "libwebpdemux",
     "libwoff2common",
     "libwoff2dec",
     "libX11-xcb",
