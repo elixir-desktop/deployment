@@ -217,7 +217,6 @@ defmodule Desktop.Deployment.Tooling do
     "libgtk-3",
     "libgudev-1",
     "libhyphen",
-    "libjavascriptcoregtk-4",
     "libk5crypto",
     "libkeyutils",
     "libkrb5",
