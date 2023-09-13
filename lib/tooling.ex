@@ -218,7 +218,6 @@ defmodule Desktop.Deployment.Tooling do
     "libgudev-1",
     "libhyphen",
     "libicudata",
-    "libicuuc",
     "libjavascriptcoregtk-4",
     "libk5crypto",
     "libkeyutils",
