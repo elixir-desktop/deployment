@@ -36,6 +36,7 @@ defmodule Desktop.Deployment.Tooling do
     dst = Path.join(priv(pkg), Path.basename(src))
     File.mkdir_p(priv(pkg))
     if not File.exists?(dst), do: File.cp!(src, dst)
+    src
   end
 
   def dll_import!(%Mix.Release{} = rel, src) do
@@ -154,7 +155,6 @@ defmodule Desktop.Deployment.Tooling do
     "libdbus-1",
     "libdl",
     "libexpat",
-    "libffi",
     "libgcc_s",
     "libharfbuzz-icu",
     "libharfbuzz",
