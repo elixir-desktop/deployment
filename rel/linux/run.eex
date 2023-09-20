@@ -28,7 +28,7 @@ export RELEASE_NAME="<%= @release.name %>"
 <%= if Desktop.Deployment.Tooling.os() == MacOS do %>
 export HEART_COMMAND="open -a <%= @package.name %> -W"
 <% else %>
-export HEART_COMMAND="$RELEASE_ROOT/bin/$RELEASE_NAME $RELEASE_COMMAND"
+export HEART_COMMAND="$RELEASE_ROOT/<%= @package.name %> $RELEASE_COMMAND"
 <% end %>
 export ELIXIR_ERL_OPTIONS="+sbwt none -heart -kernel inet_dist_use_interface {127,0,0,1} <%= @package.elixir_erl_options %> "
 export ERL_EPMD_ADDRESS=127.0.0.1
