@@ -31,25 +31,38 @@ defmodule Desktop.Deployment.Tooling do
     Path.join([path, "lib", "#{app}-#{vsn}", "priv"])
   end
 
-  def priv_import!(pkg, src) do
+  def priv_import!(pkg, src, strip \\ true) do
     # Copying libraries to app_name-vsn/priv and adding that to (DY)LD_LIBRARY_PATH
     dst = Path.join(priv(pkg), Path.basename(src))
     File.mkdir_p(priv(pkg))
-    if not File.exists?(dst), do: File.cp!(src, dst)
+
+    if not File.exists?(dst) do
+      File.cp!(src, dst)
+      if strip, do: strip_symbols(dst)
+    end
+
     src
   end
 
   def dll_import!(%Mix.Release{} = rel, src) do
     # In windows the primary .exe directory is searched for missing dlls
     # (and there is no LD_LIBRARY_PATH)
-    erst_bin_import!(rel, src)
+    erts_bin_import!(rel, src)
   end
 
-  def erst_bin_import!(%Mix.Release{path: path}, src) do
+  def erts_bin_import!(%Mix.Release{path: path}, src) do
     erts = Application.app_dir(:erts) |> Path.basename()
     bindir = Path.join([path, erts, "bin"])
     dst = Path.join(bindir, Path.basename(src))
-    if not File.exists?(dst), do: File.cp!(src, dst)
+
+    if not File.exists?(dst) do
+      File.cp!(src, dst)
+      strip_symbols(dst)
+    end
+  end
+
+  def strip_symbols(file) do
+    cmd!("strip", ["-s", file])
   end
 
   def base_import!(%Mix.Release{path: path}, src) do
@@ -126,7 +139,9 @@ defmodule Desktop.Deployment.Tooling do
       end
     end)
     |> Enum.filter(fn lib ->
-      is_binary(lib) and (String.starts_with?(lib, "/usr/local/opt/") or String.starts_with?(lib, "/Users/")) and not String.starts_with?(lib, cwd)
+      is_binary(lib) and
+        (String.starts_with?(lib, "/usr/local/opt/") or String.starts_with?(lib, "/Users/")) and
+        not String.starts_with?(lib, cwd)
     end)
   end
 

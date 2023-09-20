@@ -40,7 +40,7 @@ defmodule Desktop.Deployment.Package do
     # Updating icon
     cmd!("convert", ["-resize", "64x64", pkg.icon, "icon.ico"])
 
-    priv_import!(pkg, "icon.ico")
+    priv_import!(pkg, "icon.ico", false)
 
     icon = Path.join(priv(pkg), "icon.ico")
     base = Mix.Project.deps_paths()[:desktop_deployment]
@@ -111,7 +111,7 @@ defmodule Desktop.Deployment.Package do
           System.halt(1)
         end
 
-        erst_bin_import!(rel, bin)
+        erts_bin_import!(rel, bin)
 
         for lib <- find_deps(os, bin) do
           priv_import!(pkg, lib)
