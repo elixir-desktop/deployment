@@ -96,9 +96,9 @@ defmodule Desktop.Deployment.Package do
     strip_symbols(beam)
     File.rename!(beam, Path.join(Path.dirname(beam), name))
 
-    (wildcard(rel, "**/*.dylib") ++ wildcard(rel, "**/*.so"))
-    |> Enum.each(&strip_symbols/1)
-    |> Enum.each(fn lib -> priv_import!(pkg, lib) end)
+    libs = wildcard(rel, "**/*.dylib") ++ wildcard(rel, "**/*.so")
+    for lib <- libs, do: strip_symbols(lib)
+    for lib <- find_all_deps(os, libs), do: priv_import!(pkg, lib)
 
     if os == Linux do
       if pkg.import_inofitywait do
