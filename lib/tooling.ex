@@ -38,6 +38,7 @@ defmodule Desktop.Deployment.Tooling do
 
     if not File.exists?(dst) do
       File.cp!(src, dst)
+      File.chmod!(dst, 0o755)
       if strip, do: strip_symbols(dst)
     end
 
