@@ -93,8 +93,8 @@ defmodule Desktop.Deployment.Package do
 
     # Unsafe binary removal of "Erlang", needs same length!
     file_replace(beam, "Erlang", binary_part(pkg.name <> <<0, 0, 0, 0, 0, 0>>, 0, 6))
+    strip_symbols(beam)
     File.rename!(beam, Path.join(Path.dirname(beam), name))
-    strip_symbols(name)
 
     (wildcard(rel, "**/*.dylib") ++ wildcard(rel, "**/*.so"))
     |> Enum.each(&strip_symbols/1)
