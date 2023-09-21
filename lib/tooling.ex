@@ -62,7 +62,18 @@ defmodule Desktop.Deployment.Tooling do
   end
 
   def strip_symbols(file) do
-    cmd!("strip", ["-s", file])
+    if os() == MacOS do
+      # Striping on macos executables and shared libraries differently
+      if Regex.match?(~r/\.(so|dylib)($|\.)/, file) do
+        cmd!("strip", ["-x", "-S", file])
+      else
+        cmd!("strip", ["-u", "-r", file])
+      end
+    else
+      cmd!("strip", ["-s", file])
+    end
+
+    file
   end
 
   def base_import!(%Mix.Release{path: path}, src) do

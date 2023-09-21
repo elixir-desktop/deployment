@@ -94,12 +94,13 @@ defmodule Desktop.Deployment.Package do
     # Unsafe binary removal of "Erlang", needs same length!
     file_replace(beam, "Erlang", binary_part(pkg.name <> <<0, 0, 0, 0, 0, 0>>, 0, 6))
     File.rename!(beam, Path.join(Path.dirname(beam), name))
+    strip_symbols(name)
 
-    if os == MacOS do
-      find_all_deps(os, wildcard(rel, "**/*.dylib") ++ wildcard(rel, "**/*.so"))
-      # |> IO.inspect(label: "all_deps")
-      |> Enum.each(fn lib -> priv_import!(pkg, lib) end)
-    else
+    (wildcard(rel, "**/*.dylib") ++ wildcard(rel, "**/*.so"))
+    |> Enum.each(&strip_symbols/1)
+    |> Enum.each(fn lib -> priv_import!(pkg, lib) end)
+
+    if os == Linux do
       if pkg.import_inofitywait do
         bin = System.find_executable("inotifywait")
 
@@ -117,9 +118,6 @@ defmodule Desktop.Deployment.Package do
           priv_import!(pkg, lib)
         end
       end
-
-      find_all_deps(os, wildcard(rel, "**/*.so"))
-      |> Enum.each(fn lib -> priv_import!(pkg, lib) end)
     end
 
     pkg
