@@ -213,7 +213,6 @@ defmodule Desktop.Deployment.Tooling do
     "libdatrie",
     "libdrm",
     "libEGL",
-    "libenchant",
     "libepoxy",
     "libfontconfig",
     "libfreetype",
