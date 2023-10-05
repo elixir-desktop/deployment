@@ -106,23 +106,21 @@ defmodule Desktop.Deployment.Package do
     for lib <- libs, do: strip_symbols(lib)
     for lib <- find_all_deps(os, libs), do: priv_import!(pkg, lib)
 
-    if os == Linux do
-      if pkg.import_inofitywait do
-        bin = System.find_executable("inotifywait")
+    if os == Linux and pkg.import_inofitywait do
+      bin = System.find_executable("inotifywait")
 
-        if bin == nil do
-          IO.puts(
-            "import_inoftifywait: true was speccified but the `inotifywait` binary could not be found"
-          )
+      if bin == nil do
+        Mix.Shell.IO.error(
+          "import_inoftifywait: true was speccified but the `inotifywait` binary could not be found"
+        )
 
-          System.halt(1)
-        end
+        System.halt(1)
+      end
 
-        erts_bin_import!(rel, bin)
+      erts_bin_import!(rel, bin)
 
-        for lib <- find_deps(os, bin) do
-          priv_import!(pkg, lib)
-        end
+      for lib <- find_deps(os, bin) do
+        priv_import!(pkg, lib)
       end
     end
 
@@ -161,7 +159,8 @@ defmodule Desktop.Deployment.Package do
 
     if signfun != nil do
       outfile = "#{pkg.name}-#{vsn}-win32.exe"
-      signfun.(Path.join([build_root, outfile]))
+      path = Path.join([build_root, outfile])
+      signfun.(path)
     end
 
     :ok
