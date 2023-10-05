@@ -49,6 +49,7 @@ defmodule Desktop.Deployment.Package do
     :ok = Mix.Tasks.Pe.Update.run(["--set-icon", icon, "--set-manifest", manifest, new_name])
 
     [elixir] = wildcard(rel, "**/elixir.bat")
+    file_replace(elixir, "werl.exe", pkg.name <> ".exe")
     file_replace(elixir, "erl.exe", pkg.name <> ".exe")
 
     redistributables = %{
