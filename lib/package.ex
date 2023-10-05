@@ -65,7 +65,7 @@ defmodule Desktop.Deployment.Package do
     end
 
     # Windows has wxwidgets & openssl statically linked
-    dll_import!(rel, "C:\\msys64\\mingw64\\bin\\libgmp-10.dll")
+    # dll_import!(rel, "C:\\msys64\\mingw64\\bin\\libgmp-10.dll")
 
     wildcard(rel, "**/*.so")
     |> Enum.each(fn name ->
