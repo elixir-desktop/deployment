@@ -51,11 +51,19 @@ defmodule Desktop.Deployment.Package do
     [elixir] = wildcard(rel, "**/elixir.bat")
     file_replace(elixir, "erl.exe", pkg.name <> ".exe")
 
-    for redist <- ~w(vcredist_x64.exe MicrosoftEdgeWebview2Setup.exe) do
-      base_import!(
-        rel,
-        Path.join([System.get_env("USERPROFILE"), "DistributedDrives/first/build", redist])
-      )
+    redistributables = %{
+      "MicrosoftEdgeWebview2Setup.exe" => "https://go.microsoft.com/fwlink/p/?LinkId=2124703",
+      "vcredist_x64.exe" => "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+    }
+
+    for {redist, url} <- redistributables do
+      if not File.exists?(redist) do
+        Mix.Shell.IO.info("Downloading #{redist} from #{url}")
+        %HTTPoison.Response{body: body} = HTTPoison.get!(url)
+        File.write!(redist, body)
+      end
+
+      base_import!(rel, redist)
     end
 
     # Windows has wxwidgets & openssl statically linked
