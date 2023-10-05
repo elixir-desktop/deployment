@@ -58,9 +58,7 @@ defmodule Desktop.Deployment.Package do
 
     for {redist, url} <- redistributables do
       if not File.exists?(redist) do
-        Mix.Shell.IO.info("Downloading #{redist} from #{url}")
-        %HTTPoison.Response{body: body} = HTTPoison.get!(url)
-        File.write!(redist, body)
+        download_file(redist, url)
       end
 
       base_import!(rel, redist)

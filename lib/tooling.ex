@@ -292,4 +292,12 @@ defmodule Desktop.Deployment.Tooling do
   def linux_builtin() do
     @lsb_builtins ++ @xorg_builtins
   end
+
+  def download_file(filename, url) do
+    Mix.Shell.IO.info("Downloading #{filename} from #{url}")
+    {:ok, _} = Application.ensure_all_started(:httpoison)
+    %HTTPoison.Response{body: body, status_code: 200} = HTTPoison.get!(url, [], follow_redirect: true)
+    |> IO.inspect()
+    File.write!(filename, body)
+  end
 end
