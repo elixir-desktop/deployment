@@ -45,8 +45,18 @@ defmodule Desktop.Deployment.Package do
     icon = Path.join(priv(pkg), "icon.ico")
     base = Mix.Project.deps_paths()[:desktop_deployment]
     windows_tools = Path.absname("#{base}/rel/win32")
-    manifest = Path.join(windows_tools, "app.exe.manifest")
-    :ok = Mix.Tasks.Pe.Update.run(["--set-icon", icon, "--set-manifest", manifest, new_name])
+    content = eval_eex(Path.join(windows_tools, "app.exe.manifest.eex"), rel, pkg)
+    build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
+    File.write!(Path.join(build_root, "app.exe.manifest"), content)
+
+    :ok =
+      Mix.Tasks.Pe.Update.run([
+        "--set-icon",
+        icon,
+        "--set-manifest",
+        Path.join(build_root, "app.exe.manifest"),
+        new_name
+      ])
 
     [elixir] = wildcard(rel, "**/elixir.bat")
     file_replace(elixir, "werl.exe", pkg.name <> ".exe")
