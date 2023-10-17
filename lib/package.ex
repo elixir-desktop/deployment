@@ -310,12 +310,18 @@ defmodule Desktop.Deployment.Package do
     File.mkdir(background_dir)
     cp!(Path.join(mac_tools, "background.png"), background_dir)
 
-    File.cp!(Path.join(mac_tools, "DS_Store"), Path.join(volume, ".DS_Store"))
-    File.cp!(Path.join(mac_tools, "VolumeIcon.icns"), Path.join(volume, ".VolumeIcon.icns"))
+    # Todo generate proper installer icon
+    # https://0day.work/parsing-the-ds_store-file-format/
+    # https://metacpan.org/dist/Mac-Finder-DSStore/view/DSStoreFormat.pod
+    metadata = ["rel/macosx/DS_Store", "rel/macosx/VolumeIcon.icns"]
 
-    cmd!("hdiutil", ["detach", volume])
+    for file <- metadata do
+      basename = "." <> Path.basename(file)
+      File.cp!(Path.join(mac_tools, file), Path.join(volume, basename))
+    end
 
     # Creating final file
+    cmd!("hdiutil", ["detach", volume])
     cmd!("hdiutil", ["convert", tmp_file, "-format", "ULFO", "-o", out_file])
 
     File.rm!(tmp_file)
