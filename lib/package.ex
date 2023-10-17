@@ -316,8 +316,10 @@ defmodule Desktop.Deployment.Package do
     metadata = ["rel/macosx/DS_Store", "rel/macosx/VolumeIcon.icns"]
 
     for file <- metadata do
-      basename = "." <> Path.basename(file)
-      File.cp!(Path.join(mac_tools, file), Path.join(volume, basename))
+      if File.exists?(file) do
+        basename = "." <> Path.basename(file)
+        File.cp!(Path.join(mac_tools, file), Path.join(volume, basename))
+      end
     end
 
     # Creating final file
