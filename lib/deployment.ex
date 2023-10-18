@@ -33,7 +33,7 @@ defmodule Desktop.Deployment do
       case config[:package] do
         nil ->
           Logger.warn(
-            "There is not package config defined. Using the generic Elixir App descriptions."
+            "There is no package config defined. Using the generic Elixir App descriptions."
           )
 
           default_package(rel)

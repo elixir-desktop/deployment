@@ -428,7 +428,7 @@ defmodule Desktop.Deployment.Package do
         IO.puts("Signing #{filename}")
         signfun.(filename)
         File.rename!("#{filename}.tmp", filename)
-        # There is a funny comments about waiting between signing requests
+        # There is a funny comment about waiting between signing requests
         # on the official microsoft docs, so we're doing that here.
         Process.sleep(5_000)
       end
