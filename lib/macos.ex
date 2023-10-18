@@ -22,11 +22,19 @@ defmodule Desktop.MacOS do
       System.get_env("MACOS_PEM") != nil ->
         file = "tmp.pem"
         File.write!(file, System.get_env("MACOS_PEM"))
-        cmd!("security", ["import", file])
-        uid = locate_uid(file)
+        uid = locate_uid(file) || raise "Could not parse PEM"
+        IO.inspect(uid, label: "uid")
+        if not String.contains?(cmd("security", ["find-identity"]), uid) do
+          cmd("security", ["import", file])
+          if not String.contains?(cmd("security", ["find-identity"]), uid) do
+            raise "Failed to import PEM for uid #{uid}"
+          end
+        end
+
         # Caching for next call
         if uid != nil do
           System.put_env("DEVELOPER_ID", uid)
+          uid
         end
 
       true ->

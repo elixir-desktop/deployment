@@ -118,6 +118,13 @@ defmodule Desktop.Deployment.Tooling do
     String.trim_trailing(ret)
   end
 
+  def cmd(cmd, args) do
+    args = Enum.map(args, fn arg -> "#{arg}" end)
+    IO.puts("Running: #{cmd} #{Enum.join(args, " ")}")
+    {ret, _} = System.cmd(cmd, args)
+    String.trim_trailing(ret)
+  end
+
   def find_all_deps(os, new_objects, old_objects \\ MapSet.new())
 
   def find_all_deps(_os, [], _old_objects) do
