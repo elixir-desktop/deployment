@@ -319,7 +319,7 @@ defmodule Desktop.Deployment.Package do
     for file <- metadata do
       if File.exists?(file) do
         basename = "." <> Path.basename(file)
-        File.cp!(Path.join(mac_tools, file), Path.join(volume, basename))
+        File.cp!(file, Path.join(volume, basename))
       end
     end
 

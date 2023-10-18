@@ -1,4 +1,5 @@
 defmodule Desktop.MacOS do
+  alias Desktop.Deployment.Package
   import Desktop.Deployment.Tooling
 
   @uid_attribute {0, 9, 2342, 19_200_300, 100, 1, 1}
@@ -22,8 +23,54 @@ defmodule Desktop.MacOS do
         file = "tmp.pem"
         File.write!(file, System.get_env("MACOS_PEM"))
         cmd!("security", ["import", file])
-        locate_uid(file)
+        uid = locate_uid(file)
+        # Caching for next call
+        if uid != nil do
+          System.put_env("DEVELOPER_ID", uid)
+        end
+
+      true ->
+        nil
     end
+  end
+
+  defmodule NtzCreds do
+    defstruct [:username, :password, :team_uid]
+  end
+
+  def notarize(file) do
+    notarize(Desktop.Deployment.package(), default_creds(), file)
+  end
+
+  def default_creds() do
+    %NtzCreds{
+      username: System.get_env("MACOS_NOTARIZATION_USER"),
+      password: System.get_env("MACOS_NOTARIZATION_PASSWORD"),
+      team_uid: find_developer_id()
+    }
+  end
+
+  def notarize(
+        %Package{identifier: identifier},
+        %NtzCreds{username: username, password: password, team_uid: team_uid},
+        file
+      )
+      when is_binary(username) and is_binary(password) and is_binary(team_uid) do
+    cmd!("xcrun", [
+      "altool",
+      "--notarize-app",
+      "--primary-bundle-id",
+      identifier <> ".dmg",
+      "--username",
+      username,
+      "--password",
+      password,
+      "--team",
+      team_uid,
+      "--file",
+      file
+    ])
+    |> IO.inspect()
   end
 
   defp scan({:AttributeTypeAndValue, @uid_attribute, uid}) do

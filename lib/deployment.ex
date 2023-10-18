@@ -16,9 +16,23 @@ defmodule Desktop.Deployment do
     }
   end
 
-  def generate_installer(%Mix.Release{} = rel) do
+  def package(rel \\ nil) do
     config = Mix.Project.config()
 
+    case config[:package] do
+      nil ->
+        Logger.warn(
+          "There is no package config defined. Using the generic Elixir App descriptions."
+        )
+
+        default_package(rel)
+
+      map ->
+        struct!(default_package(rel), map)
+    end
+  end
+
+  def generate_installer(%Mix.Release{} = rel) do
     if Mix.env() != :prod do
       IO.puts("""
         Desktop.Deployment can only build MIX_ENV=prod releases.
@@ -30,20 +44,7 @@ defmodule Desktop.Deployment do
     end
 
     package =
-      case config[:package] do
-        nil ->
-          Logger.warn(
-            "There is no package config defined. Using the generic Elixir App descriptions."
-          )
-
-          default_package(rel)
-
-        map ->
-          struct!(default_package(rel), map)
-      end
-
-    package =
-      package
+      package(rel)
       |> Package.copy_extra_files()
       |> Package.create_installer()
 
