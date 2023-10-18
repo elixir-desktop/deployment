@@ -258,7 +258,7 @@ defmodule Desktop.Deployment.Package do
 
     cp!(icon_path, resources)
 
-    developer_id = System.get_env("DEVELOPER_ID")
+    developer_id = Desktop.MacOS.find_developer_id()
 
     if developer_id != nil do
       codesign(developer_id, root)
