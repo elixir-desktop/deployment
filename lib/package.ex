@@ -244,14 +244,15 @@ defmodule Desktop.Deployment.Package do
       iconset = Path.join(build_root, "icons.iconset")
       File.mkdir_p!(iconset)
 
-      cmd!("convert", [
-        "-resize",
-        "1024x1024",
-        pkg.icon,
-        Path.join(iconset, "icon_512x512@2x.png")
-      ])
+      for size <- [16, 32, 128, 256, 512] do
+        outfile = Path.join(iconset, "icon_#{size}x#{size}.png")
+        cmd!("sips", ["-z", size, size, pkg.icon, "--out", outfile])
+        outfile = Path.join(iconset, "icon_#{size}x#{size}@2.png")
+        cmd!("sips", ["-z", 2 * size, 2 * size, pkg.icon, "--out", outfile])
+      end
 
-      cmd!("convert", ["-resize", "512x512", pkg.icon, Path.join(iconset, "icon_512x512.png")])
+      outfile = Path.join(iconset, "icon_512x512@2x.png")
+      cmd!("sips", ["-z", 1024, 1024, pkg.icon, "--out", outfile])
       cmd!("iconutil", ["-c", "icns", iconset, "-o", Path.join(mac_tools, "icons.icns")])
     end
 
@@ -310,7 +311,7 @@ defmodule Desktop.Deployment.Package do
     File.mkdir(background_dir)
     cp!(Path.join(mac_tools, "background.png"), background_dir)
 
-    # Todo generate proper installer icon
+    # Future: auto generate proper installer icon
     # https://0day.work/parsing-the-ds_store-file-format/
     # https://metacpan.org/dist/Mac-Finder-DSStore/view/DSStoreFormat.pod
     metadata = ["rel/macosx/DS_Store", "rel/macosx/VolumeIcon.icns"]
