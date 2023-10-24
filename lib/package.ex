@@ -331,13 +331,24 @@ defmodule Desktop.Deployment.Package do
     out_file
   end
 
+  defp codesign_params() do
+    case System.get_env("MACOS_KEYCHAIN") do
+      nil -> []
+      keychain -> ["-k", keychain]
+    end
+  end
+
   def package_sign(developer_id, dmg) do
-    System.cmd("codesign", [
-      "-s",
-      developer_id,
-      "--timestamp",
-      dmg
-    ])
+    System.cmd(
+      "codesign",
+      codesign_params() ++
+        [
+          "-s",
+          developer_id,
+          "--timestamp",
+          dmg
+        ]
+    )
   end
 
   def codesign(developer_id, root) do
@@ -364,28 +375,36 @@ defmodule Desktop.Deployment.Package do
     |> Enum.each(fn chunk ->
       IO.puts("Signing #{inspect(chunk)}")
 
-      cmd!("codesign", [
-        "-f",
-        "-s",
-        developer_id,
-        "--timestamp",
-        "--options=runtime",
-        "--entitlements",
-        entitlements | chunk
-      ])
+      cmd!(
+        "codesign",
+        codesign_params() ++
+          [
+            "-f",
+            "-s",
+            developer_id,
+            "--timestamp",
+            "--options=runtime",
+            "--entitlements",
+            entitlements | chunk
+          ]
+      )
     end)
 
     # Signing app directory itself
-    cmd!("codesign", [
-      "-f",
-      "-s",
-      developer_id,
-      "--timestamp",
-      "--options=runtime",
-      "--entitlements",
-      entitlements,
-      root
-    ])
+    cmd!(
+      "codesign",
+      codesign_params() ++
+        [
+          "-f",
+          "-s",
+          developer_id,
+          "--timestamp",
+          "--options=runtime",
+          "--entitlements",
+          entitlements,
+          root
+        ]
+    )
   end
 
   def win32_codesign(signfun, root) do

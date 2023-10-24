@@ -1,4 +1,7 @@
 defmodule Desktop.MacOS do
+  @moduledoc """
+  macOS specific deployment functions.
+  """
   alias Desktop.Deployment.Package
   import Desktop.Deployment.Tooling
 
@@ -23,13 +26,7 @@ defmodule Desktop.MacOS do
         file = "tmp.pem"
         File.write!(file, System.get_env("MACOS_PEM"))
         uid = locate_uid(file) || raise "Could not parse PEM"
-        IO.inspect(uid, label: "uid")
-        if not String.contains?(cmd("security", ["find-identity"]), uid) do
-          cmd("security", ["import", file])
-          if not String.contains?(cmd("security", ["find-identity"]), uid) do
-            raise "Failed to import PEM for uid #{uid}"
-          end
-        end
+        maybe_import_pem(file, uid)
 
         # Caching for next call
         if uid != nil do
@@ -42,7 +39,18 @@ defmodule Desktop.MacOS do
     end
   end
 
+  defp maybe_import_pem(file, uid) do
+    if not String.contains?(cmd("security", ["find-identity"]), uid) do
+      cmd("security", ["import", file])
+
+      if not String.contains?(cmd("security", ["find-identity"]), uid) do
+        raise "Failed to import PEM for uid #{uid}"
+      end
+    end
+  end
+
   defmodule NtzCreds do
+    @moduledoc false
     defstruct [:username, :password, :team_uid]
   end
 
@@ -78,7 +86,6 @@ defmodule Desktop.MacOS do
       "--file",
       file
     ])
-    |> IO.inspect()
   end
 
   defp scan({:AttributeTypeAndValue, @uid_attribute, uid}) do
