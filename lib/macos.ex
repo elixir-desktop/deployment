@@ -41,7 +41,7 @@ defmodule Desktop.MacOS do
 
   defp maybe_import_pem(file, uid) do
     if not String.contains?(find_identity(), uid) do
-      cmd("security", ["import", file] ++ import_params("-k"))
+      cmd("security", ["import", file] ++ import_params("-k", &Path.basename/1))
 
       if not String.contains?(find_identity(), uid) do
         raise "Failed to import PEM for uid #{uid}"
@@ -53,10 +53,10 @@ defmodule Desktop.MacOS do
     cmd("security", ["find-identity"] ++ import_params("-v"))
   end
 
-  defp import_params(flag) do
+  defp import_params(flag, mapping \\ fn x -> x end) do
     case System.get_env("MACOS_KEYCHAIN") do
       nil -> []
-      keychain -> [flag, keychain]
+      keychain -> [flag, mapping.(keychain)]
     end
   end
 
