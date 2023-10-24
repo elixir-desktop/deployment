@@ -331,23 +331,15 @@ defmodule Desktop.Deployment.Package do
     out_file
   end
 
-  defp codesign_params() do
-    case System.get_env("MACOS_KEYCHAIN") do
-      nil -> []
-      keychain -> ["-k", keychain]
-    end
-  end
-
   def package_sign(developer_id, dmg) do
     System.cmd(
       "codesign",
-      codesign_params() ++
-        [
-          "-s",
-          developer_id,
-          "--timestamp",
-          dmg
-        ]
+      [
+        "-s",
+        developer_id,
+        "--timestamp",
+        dmg
+      ]
     )
   end
 
@@ -377,23 +369,6 @@ defmodule Desktop.Deployment.Package do
 
       cmd!(
         "codesign",
-        codesign_params() ++
-          [
-            "-f",
-            "-s",
-            developer_id,
-            "--timestamp",
-            "--options=runtime",
-            "--entitlements",
-            entitlements | chunk
-          ]
-      )
-    end)
-
-    # Signing app directory itself
-    cmd!(
-      "codesign",
-      codesign_params() ++
         [
           "-f",
           "-s",
@@ -401,9 +376,24 @@ defmodule Desktop.Deployment.Package do
           "--timestamp",
           "--options=runtime",
           "--entitlements",
-          entitlements,
-          root
+          entitlements | chunk
         ]
+      )
+    end)
+
+    # Signing app directory itself
+    cmd!(
+      "codesign",
+      [
+        "-f",
+        "-s",
+        developer_id,
+        "--timestamp",
+        "--options=runtime",
+        "--entitlements",
+        entitlements,
+        root
+      ]
     )
   end
 
