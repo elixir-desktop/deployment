@@ -17,7 +17,7 @@ SetDatablockOptimize ON
 InstallDir "$PROGRAMFILES64\<%= @package.name_long || @package.name %>"
 
 ; Registry keys where start menu folder is stored
-!define MY_STARTMENUPAGE_REGISTRY_ROOT HKLM
+!define MY_STARTMENUPAGE_REGISTRY_ROOT HKCU
 !define MY_STARTMENUPAGE_REGISTRY_KEY "SOFTWARE\<%= @package.name %>\${VERSION}"
 !define MY_STARTMENUPAGE_REGISTRY_VALUENAME "Start Menu Folder"
 
@@ -84,8 +84,8 @@ File /r *.*
 ExecWait '"$INSTDIR\vcredist_x64.exe" /install /norestart /silent'
 ExecWait '"$INSTDIR\MicrosoftEdgeWebview2Setup.exe" /silent /install'
 
-WriteRegStr HKLM "${MY_STARTMENUPAGE_REGISTRY_KEY}" "" $INSTDIR
-WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "<%= @package.name %>" "${TARGET}"
+WriteRegStr HKCU "${MY_STARTMENUPAGE_REGISTRY_KEY}" "" $INSTDIR
+;WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "<%= @package.name %>" "${TARGET}"
 
 ; Register for mimetype
 ;WriteRegStr HKCR \
@@ -234,6 +234,7 @@ DeleteRegKey /ifempty HKCU "${MY_STARTMENUPAGE_REGISTRY_KEY}"
 DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>"
 DeleteRegKey HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>"
 DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "<%= @package.name %>"
+DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "<%= @package.name %>"
 
 RMDir "$INSTDIR"
 
