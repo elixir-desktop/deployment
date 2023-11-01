@@ -169,17 +169,18 @@ defmodule Desktop.Deployment.Tooling do
     |> String.split("\n")
     |> Enum.map(fn row ->
       case String.split(row, " ") do
-        [_, "=>", "not" | _] -> nil
-        [_, "=>", path | _] -> path
-        _other -> nil
+        [name, "=>", "not" | _] ->
+          raise "Error locating required library #{String.trim(name)} for #{object}"
+
+        [_, "=>", path | _] ->
+          path
+
+        _other ->
+          nil
       end
     end)
     |> Enum.filter(fn lib ->
-      if is_binary(lib) do
-        Path.basename(lib) not in linux_builtin()
-      else
-        false
-      end
+      is_binary(lib) and Path.basename(lib) not in linux_builtin()
     end)
   end
 
