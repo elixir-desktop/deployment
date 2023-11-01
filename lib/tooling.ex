@@ -176,128 +176,26 @@ defmodule Desktop.Deployment.Tooling do
     end)
     |> Enum.filter(fn lib ->
       if is_binary(lib) do
-        name = hd(String.split(Path.basename(lib), "."))
-        name not in linux_builtin()
+        Path.basename(lib) not in linux_builtin()
       else
         false
       end
     end)
   end
 
-  @lsb_builtins [
-    "libc",
-    "libdbus-1",
-    "libdl",
-    "libexpat",
-    "libgcc_s",
-    "libharfbuzz-icu",
-    "libharfbuzz",
-    "libICE",
-    "libm",
-    "libmount",
-    "libpcre",
-    "libpthread",
-    "libresolv",
-    "librt",
-    "libselinux",
-    "libstdc++",
-    "libsystemd",
-    "libudev",
-    "libuuid",
-    "libz"
-  ]
-  @xorg_builtins [
-    "libatk-1",
-    "libatk-bridge-2",
-    "libatspi",
-    "libblkid",
-    "libbrotlicommon",
-    "libbrotlidec",
-    "libbsd",
-    "libcairo-gobject",
-    "libcairo",
-    "libcom_err",
-    "libdatrie",
-    "libdrm",
-    "libEGL",
-    "libepoxy",
-    "libfontconfig",
-    "libfreetype",
-    "libgbm",
-    "libgcrypt",
-    "libgdk_pixbuf-2",
-    "libgdk-3",
-    "libgio-2",
-    "libGL",
-    "libGLdispatch",
-    "libglib-2",
-    "libGLX",
-    "libgmodule-2",
-    "libgobject-2",
-    "libgpg-error",
-    "libgraphite2",
-    "libgssapi_krb5",
-    "libgstallocators-1",
-    "libgstapp-1",
-    "libgstaudio-1",
-    "libgstbase-1",
-    "libgstfft-1",
-    "libgstgl-1",
-    "libgstpbutils-1",
-    "libgstreamer-1",
-    "libgsttag-1",
-    "libgstvideo-1",
-    "libgtk-3",
-    "libgudev-1",
-    "libhyphen",
-    "libk5crypto",
-    "libkeyutils",
-    "libkrb5",
-    "libkrb5support",
-    "liblz4",
-    "liblzma",
-    "liborc-0",
-    "libpango-1",
-    "libpangocairo-1",
-    "libpangoft2-1",
-    "libpixman-1",
-    "librotlidec",
-    "libsecret-1",
-    "libSM",
-    "libsoup-2",
-    "libtasn1",
-    "libthai",
-    "libwayland-client",
-    "libwayland-cursor",
-    "libwayland-egl",
-    "libwayland-server",
-    "libwoff2common",
-    "libwoff2dec",
-    "libX11-xcb",
-    "libX11",
-    "libXau",
-    "libxcb-render",
-    "libxcb-shm",
-    "libxcb",
-    "libXcomposite",
-    "libXcursor",
-    "libXdamage",
-    "libXdmcp",
-    "libXext",
-    "libXfixes",
-    "libXi",
-    "libXinerama",
-    "libxkbcommon",
-    "libxml2",
-    "libXrandr",
-    "libXrender",
-    "libxslt",
-    "libXtst",
-    "libXxf86vm"
-    # "libsqlite3",
-  ]
+  # https://raw.githubusercontent.com/probonopd/AppImages/master/excludelist
+  @excludelist File.read!("priv/AppImages/excludelist")
+               |> String.split("\n")
+               |> Enum.map(fn row ->
+                 case String.split(row, " ") do
+                   [] -> nil
+                   ["#" <> _ | _] -> nil
+                   [lib | _] -> lib
+                 end
+               end)
+               |> Enum.filter(fn lib -> lib != nil and lib != "" end)
   def linux_builtin() do
-    @lsb_builtins ++ @xorg_builtins
+    @excludelist
   end
 
   def download_file(filename, url) do
