@@ -40,7 +40,7 @@ defmodule Desktop.Deployment.MixProject do
       # Credo
       {:httpoison, "~> 2.0", runtime: false},
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
-      {:libpe, "~> 1.1"},
+      {:libpe, "~> 1.2"},
       {:poison, "~> 3.0"}
     ]
   end

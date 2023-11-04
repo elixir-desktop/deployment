@@ -6,6 +6,7 @@ defmodule Desktop.Deployment.Package do
 
   defstruct name: "ElixirApp",
             name_long: "The Elixir App",
+            company: "Elixir",
             description: "An Elixir App for Dekstop",
             description_long: "An Elixir App for Desktop powered by Phoenix LiveView",
             icon: "priv/icon.png",
@@ -49,14 +50,31 @@ defmodule Desktop.Deployment.Package do
     build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
     File.write!(Path.join(build_root, "app.exe.manifest"), content)
 
+    git_version =
+      with {version, 0} <- System.cmd("git", ["describe", "--tags", "--always"]) do
+        String.trim(version)
+      end
+
+    info =
+      %{
+        "CompanyName" => pkg.company,
+        "FileDescription" => pkg.description,
+        "FileVersion" => git_version || pkg.vsn,
+        "LegalCopyright" => "#{pkg.company}. All rights reserved.",
+        "ProductName" => pkg.name,
+        "ProductVersion" => pkg.vsn
+      }
+      |> Enum.map(fn {key, value} -> ["--set-info", key, value] end)
+
     :ok =
-      Mix.Tasks.Pe.Update.run([
-        "--set-icon",
-        icon,
-        "--set-manifest",
-        Path.join(build_root, "app.exe.manifest"),
-        new_name
-      ])
+      Mix.Tasks.Pe.Update.run(
+        [
+          "--set-icon",
+          icon,
+          "--set-manifest",
+          Path.join(build_root, "app.exe.manifest")
+        ] ++ info ++ [new_name]
+      )
 
     [elixir] = wildcard(rel, "**/elixir.bat")
     file_replace(elixir, "werl.exe", pkg.name <> ".exe")
