@@ -67,7 +67,7 @@ defmodule Desktop.Deployment.Package do
         "ProductName" => pkg.name,
         "ProductVersion" => vsn
       }
-      |> Enum.map(fn {key, value} -> ["--set-info", key, value] end)
+      |> Enum.flat_map(fn {key, value} -> ["--set-info", key, value] end)
 
     :ok =
       Mix.Tasks.Pe.Update.run(
