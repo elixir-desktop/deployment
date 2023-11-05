@@ -32,7 +32,10 @@ defmodule Desktop.Deployment.Package do
     copy_extra_files(os(), pkg)
   end
 
-  defp copy_extra_files(Windows, %Package{release: %Mix.Release{path: rel_path} = rel} = pkg) do
+  defp copy_extra_files(
+         Windows,
+         %Package{release: %Mix.Release{path: rel_path, version: vsn} = rel} = pkg
+       ) do
     # Windows renaming exectuable
     [erl] = wildcard(rel, "**/erl.exe")
     new_name = Path.join(Path.dirname(erl), pkg.name <> ".exe")
@@ -59,10 +62,10 @@ defmodule Desktop.Deployment.Package do
       %{
         "CompanyName" => pkg.company,
         "FileDescription" => pkg.description,
-        "FileVersion" => git_version || pkg.vsn,
+        "FileVersion" => git_version || vsn,
         "LegalCopyright" => "#{pkg.company}. All rights reserved.",
         "ProductName" => pkg.name,
-        "ProductVersion" => pkg.vsn
+        "ProductVersion" => vsn
       }
       |> Enum.map(fn {key, value} -> ["--set-info", key, value] end)
 
