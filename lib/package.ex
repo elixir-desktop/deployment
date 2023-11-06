@@ -112,7 +112,7 @@ defmodule Desktop.Deployment.Package do
     pkg
   end
 
-  defp copy_extra_files(os, %Package{release: %Mix.Release{path: rel_path} = rel} = pkg)
+  defp copy_extra_files(os, %Package{release: %Mix.Release{} = rel} = pkg)
        when os == Linux or os == MacOS do
     [beam] = wildcard(rel, "**/beam.smp")
     # Chaning emulator name
@@ -134,21 +134,8 @@ defmodule Desktop.Deployment.Package do
     strip_symbols(beam)
     File.rename!(beam, Path.join(Path.dirname(beam), name))
 
-    # libse mock
     if os == Linux do
-      build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
-      File.write!(Path.join(build_root, "selinux-mock.c"), "extern int is_selinux_enabled(void){return 0;}")
-
-      cmd!("gcc", [
-        "-s",
-        "-shared",
-        "-o",
-        Path.join(build_root, "libselinux.so.1"),
-        "-Wl,-soname,libselinux.so.1",
-        Path.join(build_root, "selinux-mock.c")
-      ])
-
-      priv_import!(pkg, Path.join(build_root, "libselinux.so.1"))
+      linux_import_libse_mock(pkg)
     end
 
     # Importing dependend libraries
@@ -157,16 +144,16 @@ defmodule Desktop.Deployment.Package do
     deps = find_all_deps(os, libs)
     for lib <- deps, do: priv_import!(pkg, lib)
 
-    # libgio modules
-    libgio = Enum.find(deps, fn lib -> String.starts_with?(Path.basename(lib), "libgio") end)
-
-    if os == Linux and libgio != nil do
-      File.mkdir_p!(Path.join(priv(pkg), "gio/modules"))
-      files = wildcard(Path.dirname(libgio), "gio/modules/*")
-      for file <- files, do: priv_import!(pkg, file, extra_path: ["gio/modules"])
+    if os == Linux do
+      linux_import_libgio_modules(pkg, deps)
+      linux_import_inotifywait(pkg)
     end
 
-    if os == Linux and pkg.import_inofitywait do
+    pkg
+  end
+
+  defp linux_import_inotifywait(%Package{release: rel} = pkg) do
+    if pkg.import_inofitywait do
       bin = System.find_executable("inotifywait")
 
       if bin == nil do
@@ -179,12 +166,47 @@ defmodule Desktop.Deployment.Package do
 
       erts_bin_import!(rel, bin)
 
-      for lib <- find_deps(os, bin) do
+      for lib <- find_deps(os(), bin) do
         priv_import!(pkg, lib)
       end
     end
+  end
 
-    pkg
+  defp linux_import_libgio_modules(%Package{} = pkg, deps) do
+    libgio = Enum.find(deps, fn lib -> String.starts_with?(Path.basename(lib), "libgio") end)
+
+    if libgio != nil do
+      File.mkdir_p!(Path.join(priv(pkg), "gio/modules"))
+      files = wildcard(Path.dirname(libgio), "gio/modules/*")
+      for file <- files, do: priv_import!(pkg, file, extra_path: ["gio/modules"])
+    end
+  end
+
+  defp linux_import_libse_mock(%Package{release: %Mix.Release{path: rel_path}} = pkg) do
+    build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
+
+    libselinux_dummy =
+      Path.join(Mix.Project.deps_paths()[:desktop_deployment], "priv/libselinux-dummy")
+
+    for lib <- ["selinux", "semanage", "sepol"] do
+      soname = "lib#{lib}.so.1"
+
+      if !File.exists?(Path.join(build_root, soname)) do
+        cmd!("gcc", [
+          "-s",
+          "-shared",
+          "-o",
+          Path.join(build_root, soname),
+          "-Wl,-soname,#{soname}",
+          "-Wl,--version-script,#{libselinux_dummy}/src/lib/lib#{lib}.map",
+          "-I#{libselinux_dummy}/src/lib/",
+          "#{libselinux_dummy}/src/dummy/dummy.c"
+          | wildcard("#{libselinux_dummy}/src/lib/#{lib}/", "*.c")
+        ])
+      end
+
+      priv_import!(pkg, Path.join(build_root, soname))
+    end
   end
 
   def create_installer(%Package{} = pkg) do

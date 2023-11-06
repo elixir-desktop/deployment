@@ -1,0 +1,5 @@
+libselinux-dummy (99999) unstable; urgency=low
+
+  * Initial version.
+
+ -- aa aa <aa@aaa.aa>  Thu,  3 Jul 2003 17:16:19 -0400

@@ -1,0 +1,15 @@
+Source: libselinux-dummy
+Priority: optional
+Section: libs
+Maintainer: Dummy SELinux maintainers <aa@aaa.aa>
+Standards-Version: 4.5.0
+Homepage: https://gitlab.com/sulinos/devel/libselinux-dummy
+Rules-Requires-Root: no
+
+Package: libselinux-dummy
+Architecture: linux-any
+Multi-Arch: same
+Pre-Depends: ${misc:Pre-Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: dummy selinux for debian
+Replaces: libselinux1, libselinux1-dev, libselinux1-udeb, python3-selinux, ruby-selinux, selinux-utils

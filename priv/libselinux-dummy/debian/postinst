@@ -1,0 +1,8 @@
+#!/bin/bash
+#remove selinux stuff
+rm -f /usr/lib/x86_64-linux-gnu/libselinux.so
+rm -f /usr/lib/x86_64-linux-gnu/libselinux.so.1
+rm -f /usr/lib/x86_64-linux-gnu/libsemanage.so
+rm -f /usr/lib/x86_64-linux-gnu/libsemanage.so.1
+rm -f /usr/lib/x86_64-linux-gnu/libsepol.so
+rm -f /usr/lib/x86_64-linux-gnu/libsepol.so.1
