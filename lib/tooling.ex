@@ -1,6 +1,5 @@
 defmodule Desktop.Deployment.Tooling do
   @moduledoc false
-  alias Desktop.MacOS
 
   def file_replace(file, from, to) do
     orig = File.read!(file)
