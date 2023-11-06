@@ -44,7 +44,7 @@ defmodule Desktop.Deployment.Package do
     # Updating icon
     cmd!("convert", ["-resize", "64x64", pkg.icon, "icon.ico"])
 
-    priv_import!(pkg, "icon.ico", false)
+    priv_import!(pkg, "icon.ico", strip: false)
 
     icon = Path.join(priv(pkg), "icon.ico")
     base = Mix.Project.deps_paths()[:desktop_deployment]
@@ -112,7 +112,7 @@ defmodule Desktop.Deployment.Package do
     pkg
   end
 
-  defp copy_extra_files(os, %Package{release: %Mix.Release{} = rel} = pkg)
+  defp copy_extra_files(os, %Package{release: %Mix.Release{path: rel_path} = rel} = pkg)
        when os == Linux or os == MacOS do
     [beam] = wildcard(rel, "**/beam.smp")
     # Chaning emulator name
@@ -134,9 +134,37 @@ defmodule Desktop.Deployment.Package do
     strip_symbols(beam)
     File.rename!(beam, Path.join(Path.dirname(beam), name))
 
+    # libse mock
+    if os == Linux do
+      build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
+      File.write!(Path.join(build_root, "selinux-mock.c"), "extern int is_selinux_enabled(void){return 0;}")
+
+      cmd!("gcc", [
+        "-s",
+        "-shared",
+        "-o",
+        Path.join(build_root, "libselinux.so.1"),
+        "-Wl,-soname,libselinux.so.1",
+        Path.join(build_root, "selinux-mock.c")
+      ])
+
+      priv_import!(pkg, Path.join(build_root, "libselinux.so.1"))
+    end
+
+    # Importing dependend libraries
     libs = wildcard(rel, "**/*.dylib") ++ wildcard(rel, "**/*.so")
     for lib <- libs, do: strip_symbols(lib)
-    for lib <- find_all_deps(os, libs), do: priv_import!(pkg, lib)
+    deps = find_all_deps(os, libs)
+    for lib <- deps, do: priv_import!(pkg, lib)
+
+    # libgio modules
+    libgio = Enum.find(deps, fn lib -> String.starts_with?(Path.basename(lib), "libgio") end)
+
+    if os == Linux and libgio != nil do
+      File.mkdir_p!(Path.join(priv(pkg), "gio/modules"))
+      files = wildcard(Path.dirname(libgio), "gio/modules/*")
+      for file <- files, do: priv_import!(pkg, file, extra_path: ["gio/modules"])
+    end
 
     if os == Linux and pkg.import_inofitywait do
       bin = System.find_executable("inotifywait")

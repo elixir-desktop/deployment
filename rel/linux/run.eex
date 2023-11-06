@@ -14,6 +14,9 @@ if [ -z "$1" ]; then
 fi
 <% end %>
 
+export GDK_BACKEND=x11
+
+
 # https://github.com/reflex-frp/reflex-platform/issues/735
 export WEBKIT_DISABLE_COMPOSITING_MODE=1
 export RELEASE_VSN="${RELEASE_VSN:-"$(cut -d' ' -f2 "$RELEASE_ROOT/releases/start_erl.data")"}"
@@ -36,6 +39,7 @@ export RELEASE_DISTRIBUTION=name
 export RELEASE_NODE=<%= @package.app_name %>_$$@127.0.0.1
 export LD_LIBRARY_PATH="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/"
 export DYLD_LIBRARY_PATH="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/"
+export GIO_MODULE_DIR="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/gio/modules"
 export WX_APP_ICON="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/icon.png"
 export WX_APP_TITLE=<%= @package.name %>
 # End of . env.sh

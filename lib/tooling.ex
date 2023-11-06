@@ -1,5 +1,7 @@
 defmodule Desktop.Deployment.Tooling do
   @moduledoc false
+  alias Desktop.MacOS
+
   def file_replace(file, from, to) do
     orig = File.read!(file)
     content = String.replace(orig, from, to)
@@ -31,9 +33,12 @@ defmodule Desktop.Deployment.Tooling do
     Path.join([path, "lib", "#{app}-#{vsn}", "priv"])
   end
 
-  def priv_import!(pkg, src, strip \\ true) do
+  def priv_import!(pkg, src, opts \\ []) do
     # Copying libraries to app_name-vsn/priv and adding that to (DY)LD_LIBRARY_PATH
-    dst = Path.join(priv(pkg), Path.basename(src))
+    strip = Keyword.get(opts, :strip, true)
+    extra_path = Keyword.get(opts, :extra_path, [])
+
+    dst = Path.join([priv(pkg)] ++ extra_path ++ [Path.basename(src)])
     File.mkdir_p(priv(pkg))
 
     if not File.exists?(dst) do
@@ -63,15 +68,15 @@ defmodule Desktop.Deployment.Tooling do
   end
 
   def strip_symbols(file) do
-    if os() == MacOS do
-      # Striping on macos executables and shared libraries differently
-      if Regex.match?(~r/\.(so|dylib)($|\.)/, file) do
-        cmd!("strip", ["-x", "-S", file])
-      else
-        cmd!("strip", ["-u", "-r", file])
-      end
-    else
-      cmd!("strip", ["-s", file])
+    extname = Path.extname(file)
+    is_binary = extname == ""
+    is_library = Regex.match?(~r/\.(so|dylib|smp)($|\.)/, extname)
+
+    cond do
+      os() == MacOS and is_library -> cmd!("strip", ["-x", "-S", file])
+      os() == MacOS and is_binary -> cmd!("strip", ["-u", "-r", file])
+      is_binary || is_library -> cmd!("strip", ["-s", file])
+      true -> :ok
     end
 
     file
