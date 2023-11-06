@@ -191,8 +191,9 @@ defmodule Desktop.Deployment.Package do
     for lib <- ["selinux", "semanage", "sepol"] do
       soname = "lib#{lib}.so.1"
 
-      if !File.exists?(Path.join(build_root, soname)) do
+      if not File.exists?(Path.join(build_root, soname)) do
         cmd!("gcc", [
+          "-Os",
           "-s",
           "-shared",
           "-o",
@@ -280,6 +281,8 @@ defmodule Desktop.Deployment.Package do
 
     cmd!(Path.join(linux_tools, "makeself.sh"), [
       "--xz",
+      "--threads",
+      "0",
       rel_path,
       out_file,
       pkg.name,
