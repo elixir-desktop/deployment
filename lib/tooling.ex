@@ -32,6 +32,10 @@ defmodule Desktop.Deployment.Tooling do
     Path.join([path, "lib", "#{app}-#{vsn}", "priv"])
   end
 
+  def relative_priv(%{app_name: app, release: %Mix.Release{version: vsn}}) do
+    Path.join(["lib", "#{app}-#{vsn}", "priv"])
+  end
+
   def priv_import!(pkg, src, opts \\ []) do
     # Copying libraries to app_name-vsn/priv and adding that to (DY)LD_LIBRARY_PATH
     strip = Keyword.get(opts, :strip, true)

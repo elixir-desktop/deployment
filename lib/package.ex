@@ -204,7 +204,7 @@ defmodule Desktop.Deployment.Package do
 
       loaders =
         Enum.reduce(libs, loaders, fn lib, loaders ->
-          String.replace(loaders, lib, Path.join(["pixbuf", Path.basename(lib)]))
+          String.replace(loaders, lib, Path.join([relative_priv(pkg), "pixbuf", Path.basename(lib)]))
         end)
 
       File.write!(Path.join(priv(pkg), "pixbuf.cache"), loaders)
