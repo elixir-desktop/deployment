@@ -145,6 +145,7 @@ defmodule Desktop.Deployment.Package do
     for lib <- deps, do: priv_import!(pkg, lib)
 
     if os == Linux do
+      linux_import_pixbuf_loaders(pkg, deps)
       linux_import_libgio_modules(pkg, deps)
       linux_import_inotifywait(pkg)
     end
@@ -179,6 +180,34 @@ defmodule Desktop.Deployment.Package do
       File.mkdir_p!(Path.join(priv(pkg), "gio/modules"))
       files = wildcard(Path.dirname(libgio), "gio/modules/*")
       for file <- files, do: priv_import!(pkg, file, extra_path: ["gio/modules"])
+    end
+  end
+
+  defp linux_import_pixbuf_loaders(%Package{} = pkg, deps) do
+    # libgdk = "/usr/lib/x86_64-linux-gnu/libgdk_pixbuf-2.0.so.0.4200.8"
+    libgdk =
+      Enum.find(deps, fn lib -> String.starts_with?(Path.basename(lib), "libgdk_pixbuf") end)
+
+    if libgdk != nil do
+      [loader | _] =
+        :filelib.wildcard('#{Path.dirname(libgdk)}/gdk-pixbuf-*/gdk-pixbuf-query-loaders')
+
+      {loaders, 0} = System.cmd("#{loader}", [])
+
+      libs =
+        String.split(loaders, "\n")
+        |> Enum.map(fn str -> String.trim(str, "\"") end)
+        |> Enum.filter(fn str -> String.ends_with?(str, ".so") end)
+
+      File.mkdir_p!(Path.join(priv(pkg), "pixbuf"))
+      for lib <- libs, do: priv_import!(pkg, lib, extra_path: ["pixbuf"])
+
+      loaders =
+        Enum.reduce(libs, loaders, fn lib, loaders ->
+          String.replace(loaders, lib, Path.join(["pixbuf", Path.basename(lib)]))
+        end)
+
+      File.write!(Path.join(priv(pkg), "pixbuf.cache"), loaders)
     end
   end
 
