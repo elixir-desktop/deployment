@@ -83,7 +83,7 @@ defmodule Desktop.Deployment.Package do
             icon,
             "--set-manifest",
             Path.join(build_root, "app.exe.manifest")
-          ] ++ info ++ [beam]
+          ] ++ info ++ [bin]
         )
     end
 
