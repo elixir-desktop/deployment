@@ -69,15 +69,23 @@ defmodule Desktop.Deployment.Package do
       }
       |> Enum.flat_map(fn {key, value} -> ["--set-info", key, value] end)
 
-    :ok =
-      Mix.Tasks.Pe.Update.run(
-        [
-          "--set-icon",
-          icon,
-          "--set-manifest",
-          Path.join(build_root, "app.exe.manifest")
-        ] ++ info ++ [new_name]
-      )
+    [beam] = wildcard(rel, "**/beam.smp.dll")
+    [erlexec] = wildcard(rel, "**/erlexec.dll")
+
+    for bin <- [new_name, beam, erlexec] do
+      # Unsafe binary removal of "Erlang", needs same length!
+      file_replace(bin, "Erlang", binary_part(pkg.name <> <<0, 0, 0, 0, 0, 0>>, 0, 6))
+
+      :ok =
+        Mix.Tasks.Pe.Update.run(
+          [
+            "--set-icon",
+            icon,
+            "--set-manifest",
+            Path.join(build_root, "app.exe.manifest")
+          ] ++ info ++ [beam]
+        )
+    end
 
     [elixir] = wildcard(rel, "**/elixir.bat")
     file_replace(elixir, "werl.exe", pkg.name <> ".exe")
@@ -204,7 +212,11 @@ defmodule Desktop.Deployment.Package do
 
       loaders =
         Enum.reduce(libs, loaders, fn lib, loaders ->
-          String.replace(loaders, lib, Path.join([relative_priv(pkg), "pixbuf", Path.basename(lib)]))
+          String.replace(
+            loaders,
+            lib,
+            Path.join([relative_priv(pkg), "pixbuf", Path.basename(lib)])
+          )
         end)
 
       File.write!(Path.join(priv(pkg), "pixbuf.cache"), loaders)
