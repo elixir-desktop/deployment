@@ -154,6 +154,7 @@ defmodule Desktop.Deployment.Package do
 
     if os == Linux do
       linux_import_pixbuf_loaders(pkg, deps)
+      linux_import_libgstreamer_modules(pkg, deps)
       linux_import_libgio_modules(pkg, deps)
       linux_import_inotifywait(pkg)
     end
@@ -178,6 +179,17 @@ defmodule Desktop.Deployment.Package do
       for lib <- find_deps(os(), bin) do
         priv_import!(pkg, lib)
       end
+    end
+  end
+
+  defp linux_import_libgstreamer_modules(%Package{} = pkg, deps) do
+    libgst =
+      Enum.find(deps, fn lib -> String.starts_with?(Path.basename(lib), "libgstreamer") end)
+
+    if libgst != nil do
+      File.mkdir_p!(Path.join(priv(pkg), "gst/modules"))
+      files = wildcard(Path.dirname(libgst), "gstreamer-1.0/*.so")
+      for file <- files, do: priv_import!(pkg, file, extra_path: ["gst/modules"])
     end
   end
 

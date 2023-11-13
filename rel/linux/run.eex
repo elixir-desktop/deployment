@@ -41,6 +41,10 @@ export LD_LIBRARY_PATH="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.
 export DYLD_LIBRARY_PATH="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/"
 export GIO_MODULE_DIR="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/gio/modules"
 export GDK_PIXBUF_MODULE_FILE="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/pixbuf.cache"
+export GST_PLUGIN_PATH="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/gst/modules"
+export GST_PLUGIN_SYSTEM_PATH="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/gst/modules"
+export GST_REGISTRY="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/gst"
+
 export WX_APP_ICON="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/icon.png"
 export WX_APP_TITLE=<%= @package.name %>
 # this prevents wxWidgets from loading any (and wrong versions) of web-extensions
