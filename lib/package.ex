@@ -157,6 +157,11 @@ defmodule Desktop.Deployment.Package do
       linux_import_libgstreamer_modules(pkg, deps)
       linux_import_libgio_modules(pkg, deps)
       linux_import_inotifywait(pkg)
+
+      # Import dependencies of these loaders and modules
+      for lib <- find_all_deps(os, wildcard(rel, "**/*.so")) do
+        priv_import!(pkg, lib)
+      end
     end
 
     pkg
