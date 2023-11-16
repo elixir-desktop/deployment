@@ -159,9 +159,13 @@ defmodule Desktop.Deployment.Package do
       linux_import_inotifywait(pkg)
 
       # Import dependencies of these loaders and modules
-      for lib <- find_all_deps(os, wildcard(rel, "**/*.so")) do
+      deps = find_all_deps(os, wildcard(rel, "**/*.so"))
+
+      for lib <- deps do
         priv_import!(pkg, lib)
       end
+
+      linux_import_nss(pkg, deps)
     end
 
     pkg
@@ -195,6 +199,16 @@ defmodule Desktop.Deployment.Package do
       File.mkdir_p!(Path.join(priv(pkg), "gst/modules"))
       files = wildcard(Path.dirname(libgst), "gstreamer-1.0/*.so")
       for file <- files, do: priv_import!(pkg, file, extra_path: ["gst/modules"])
+    end
+  end
+
+  defp linux_import_nss(%Package{} = pkg, deps) do
+    libnss = Enum.find(deps, fn lib -> String.starts_with?(Path.basename(lib), "libnss3") end)
+
+    if libnss != nil do
+      File.mkdir_p!(Path.join(priv(pkg), "nss"))
+      files = wildcard(Path.dirname(libnss), "nss/*.so")
+      for file <- files, do: priv_import!(pkg, file, extra_path: ["nss"])
     end
   end
 
