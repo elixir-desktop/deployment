@@ -16,6 +16,8 @@ defmodule Desktop.Deployment.Package do
             identifier: "io.elixirdesktop.app",
             # additional ELIXIR_ERL_OPTIONS for boot
             elixir_erl_options: "",
+            # additional ENV variables for boot
+            env: %{},
             # import options
             import_inofitywait: false,
             # defined during the process
@@ -144,6 +146,7 @@ defmodule Desktop.Deployment.Package do
 
     if os == Linux do
       linux_import_libse_mock(pkg)
+      linux_import_redirector(pkg)
     end
 
     # Importing dependend libraries
@@ -154,6 +157,7 @@ defmodule Desktop.Deployment.Package do
 
     if os == Linux do
       linux_import_pixbuf_loaders(pkg, deps)
+      pkg = linux_import_webkit(pkg, deps)
       linux_import_libgstreamer_modules(pkg, deps)
       linux_import_libgio_modules(pkg, deps)
       linux_import_inotifywait(pkg)
@@ -166,9 +170,10 @@ defmodule Desktop.Deployment.Package do
       end
 
       linux_import_nss(pkg, deps)
+      pkg
+    else
+      pkg
     end
-
-    pkg
   end
 
   defp linux_import_inotifywait(%Package{release: rel} = pkg) do
@@ -188,6 +193,36 @@ defmodule Desktop.Deployment.Package do
       for lib <- find_deps(os(), bin) do
         priv_import!(pkg, lib)
       end
+    end
+  end
+
+  defp linux_import_webkit(%Package{} = pkg, deps) do
+    libwebkit =
+      Enum.find(deps, fn lib -> String.starts_with?(Path.basename(lib), "libwebkit2gtk") end)
+
+    if libwebkit != nil do
+      File.mkdir_p!(Path.join(priv(pkg), "libwebkit2gtk"))
+      # Turns /la/la/lulu/libwebkit2gtk-4.0.so.37 into "webkit2gtk-4.0"
+      [_, basename] = Regex.run(~r"/lib([^/]+)\.so", libwebkit)
+      files = wildcard(Path.dirname(libwebkit), "#{basename}/*")
+
+      for file <- files do
+        if File.dir?(file) do
+          File.mkdir_p!(Path.join([priv(pkg), "libwebkit2gtk", Path.basename(file)]))
+
+          for subfile <- wildcard(file, "*"),
+              do: priv_import!(pkg, subfile, extra_path: ["libwebkit2gtk/#{Path.basename(file)}"])
+        else
+          priv_import!(pkg, file, extra_path: ["libwebkit2gtk"])
+        end
+      end
+
+      redirection =
+        "#{Path.dirname(libwebkit)}/#{basename}/=$RELEASE_ROOT/#{Path.join(relative_priv(pkg), "libwebkit2gtk")}/"
+
+      %Package{pkg | env: Map.put(pkg.env, "REDIRECTIONS", redirection)}
+    else
+      pkg
     end
   end
 
@@ -280,6 +315,30 @@ defmodule Desktop.Deployment.Package do
 
       priv_import!(pkg, Path.join(build_root, soname))
     end
+  end
+
+  defp linux_import_redirector(%Package{release: %Mix.Release{path: rel_path}} = pkg) do
+    build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
+    redirector = Path.join(Mix.Project.deps_paths()[:desktop_deployment], "priv/redirector")
+    soname = "libredirector.so"
+
+    if not File.exists?(Path.join(build_root, soname)) do
+      glib = cmd!("pkg-config", ["--cflags", "glib-2.0"]) |> String.split()
+
+      cmd!("gcc", [
+        "-D_GNU_SOURCE",
+        "-O",
+        "-Wall",
+        "-fPIC",
+        "-shared",
+        "-o",
+        Path.join(build_root, soname),
+        "#{redirector}/redirector.c",
+        "-ldl" | glib
+      ])
+    end
+
+    priv_import!(pkg, Path.join(build_root, soname))
   end
 
   def create_installer(%Package{} = pkg) do
