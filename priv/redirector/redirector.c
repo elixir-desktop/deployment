@@ -31,7 +31,7 @@ struct Pair *getpairs() {
     static struct Pair *pairs = NULL;
 
     if (pairs == NULL) {
-        fprintf(stderr, "Initialzing getpairs()\n");
+        // fprintf(stderr, "Initialzing getpairs()\n");
 
         char *reds = getenv("REDIRECTIONS");
         if (reds == NULL) {
@@ -65,7 +65,7 @@ struct Pair *getpairs() {
             pp->to = to;
             pp->tolen = strlen(to);
             pp++;
-            fprintf(stderr, "Setup redirect %s to %s\n", from, to);
+            // fprintf(stderr, "Setup redirect %s to %s\n", from, to);
 
             pch = strtok(NULL, ";");
         }
