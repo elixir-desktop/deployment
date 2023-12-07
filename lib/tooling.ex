@@ -1,4 +1,5 @@
 defmodule Desktop.Deployment.Tooling do
+  alias Desktop.Deployment.Package
   @moduledoc false
 
   def file_replace(file, from, to) do
@@ -120,17 +121,25 @@ defmodule Desktop.Deployment.Tooling do
   end
 
   def cmd!(cmd, args) do
-    args = Enum.map(args, fn arg -> "#{arg}" end)
-    IO.puts("Running: #{cmd} #{Enum.join(args, " ")}")
-    {ret, 0} = System.cmd(cmd, args)
-    String.trim_trailing(ret)
+    {ret, 0} = cmd_raw(cmd, args)
+    ret
   end
 
   def cmd(cmd, args) do
-    args = Enum.map(args, fn arg -> "#{arg}" end)
+    {ret, _} = cmd_raw(cmd, args)
+    ret
+  end
+
+  def cmd_raw(cmd, args) do
+    args = Enum.map(List.wrap(args), fn arg -> "#{arg}" end)
     IO.puts("Running: #{cmd} #{Enum.join(args, " ")}")
-    {ret, _} = System.cmd(cmd, args)
-    String.trim_trailing(ret)
+    {ret, status} = System.cmd(cmd, args)
+    {String.trim_trailing(ret), status}
+  end
+
+  def cmd_status(cmd, args) do
+    {_, status} = cmd_raw(cmd, args)
+    status
   end
 
   def find_all_deps(os, new_objects, old_objects \\ MapSet.new())
@@ -157,17 +166,9 @@ defmodule Desktop.Deployment.Tooling do
   def find_deps(MacOS, object) do
     cwd = File.cwd!()
 
-    cmd!("otool", ["-L", object])
-    |> String.split("\n")
-    |> Enum.map(fn row ->
-      case String.split(row, " ") do
-        [path | _] -> String.trim(path) |> String.trim(":")
-        _other -> nil
-      end
-    end)
+    Package.MacOS.find_deps(object)
     |> Enum.filter(fn lib ->
-      is_binary(lib) and
-        (String.starts_with?(lib, "/usr/local/opt/") or String.starts_with?(lib, "/Users/")) and
+      (String.starts_with?(lib, "/usr/local/opt/") or String.starts_with?(lib, "/Users/")) and
         not String.starts_with?(lib, cwd)
     end)
   end

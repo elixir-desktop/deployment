@@ -7,7 +7,7 @@
 	<key>CFBundleDisplayName</key>
 	<string><%= @package.name_long || @package.name %></string>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>English</string>
+	<string>en</string>
 	<key>CFBundleExecutable</key>
 	<string>run</string>
 	<key>CFBundleIconFile</key>
