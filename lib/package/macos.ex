@@ -67,7 +67,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     cp!(icon_path, resources)
     maybe_import_webview(pkg, contents)
 
-    for bin <- wildcard(root, "**/*.dylib") ++ wildcard(root, "**/*.so") do
+    for bin <- find_binaries(root) do
       rewrite_deps(bin, fn dep ->
         if should_rewrite?(bin, dep) do
           rewrite_to_approot(pkg, bin, dep, root)
@@ -430,18 +430,22 @@ defmodule Desktop.Deployment.Package.MacOS do
   defp scan(tuple) when is_tuple(tuple), do: scan(Tuple.to_list(tuple))
   defp scan(_), do: nil
 
-  def codesign(developer_id, root) do
-    # Codesign all executable code in the package with timestamp and
-    # hardened runtime. This is a prerequisite for notarization.
-    libs = wildcard(root, "**/*.so") ++ wildcard(root, "**/*.dylib")
+  def find_binaries(root) do
+    libs = wildcard(root, "**/*.so") ++ wildcard(root, "**/*.dylib") ++ wildcard(root, "**/*.smp")
 
     bins =
       wildcard(root, "**")
+      |> Enum.reject(fn file -> String.contains?(Path.basename(file), ".") end)
       |> Enum.filter(fn file -> Bitwise.band(0o100, File.lstat!(file).mode) != 0 end)
 
-    to_sign =
-      (bins ++ libs)
-      |> Enum.filter(fn file -> File.lstat!(file).type == :regular end)
+    (bins ++ libs)
+    |> Enum.filter(fn file -> File.lstat!(file).type == :regular end)
+  end
+
+  def codesign(developer_id, root) do
+    # Codesign all executable code in the package with timestamp and
+    # hardened runtime. This is a prerequisite for notarization.
+    to_sign = find_binaries(root)
 
     base = Mix.Project.deps_paths()[:desktop_deployment]
     mac_tools = Path.absname("#{base}/rel/macosx")

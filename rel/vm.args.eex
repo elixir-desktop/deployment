@@ -1,6 +1,3 @@
-## Dynamic library path for MacOS release
--env DYLD_LIBRARY_PATH ../Resources/lib/<%= @release.name %>-<%= @release.version %>/priv/
-
 ## Number of dirty schedulers doing IO work (file, sockets, and others)
 +SDio 5
 

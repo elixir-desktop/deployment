@@ -26,11 +26,6 @@
 	<string><%= @release.version %></string>
 	<key>LSMinimumSystemVersion</key>
 	<string>10.12.0</string>
-    <key>LSEnvironment</key>
-    <dict>
-        <key>DYLD_LIBRARY_PATH</key>
-        <string>value</string>
-    </dict>
 	<key>LSApplicationCategoryType</key>
 	<string><%= @package.category_macos %></string>
 	<key>LSUIElement</key>

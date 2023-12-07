@@ -39,7 +39,6 @@ export RELEASE_DISTRIBUTION=name
 export RELEASE_NODE=<%= @package.app_name %>_$$@127.0.0.1
 export LD_LIBRARY_PATH="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/"
 export LD_PRELOAD="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/libredirector.so"
-export DYLD_LIBRARY_PATH="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/"
 export GIO_MODULE_DIR="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/gio/modules"
 export GDK_PIXBUF_MODULE_FILE="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/pixbuf.cache"
 export GST_PLUGIN_PATH="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/gst/modules"
