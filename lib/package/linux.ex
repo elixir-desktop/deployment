@@ -29,6 +29,7 @@ defmodule Desktop.Deployment.Package.Linux do
     end
 
     import_nss(pkg, deps)
+    pkg
   end
 
   defp import_inotifywait(%Package{release: rel} = pkg) do
