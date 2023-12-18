@@ -22,7 +22,8 @@ defmodule Desktop.Deployment.Package do
             import_inofitywait: false,
             # defined during the process
             app_name: nil,
-            release: nil
+            release: nil,
+            priv: %{}
 
   def copy_extra_files(%Package{release: %Mix.Release{path: rel_path, version: vsn} = rel} = pkg) do
     base = Mix.Project.deps_paths()[:desktop_deployment]
@@ -92,6 +93,7 @@ defmodule Desktop.Deployment.Package do
     [elixir] = wildcard(rel, "**/elixir.bat")
     file_replace(elixir, "werl.exe", pkg.name <> ".exe")
     file_replace(elixir, "erl.exe", pkg.name <> ".exe")
+    pkg = %{pkg | priv: Map.put(pkg.priv, :executable_name, pkg.name <> ".exe")}
 
     redistributables = %{
       "MicrosoftEdgeWebview2Setup.exe" => "https://go.microsoft.com/fwlink/p/?LinkId=2124703",
@@ -138,6 +140,7 @@ defmodule Desktop.Deployment.Package do
     # and renaming beam
     System.put_env("EMU", pkg.name)
     name = cmd!(erlexec, ["-emu_name_exit"])
+    pkg = %{pkg | priv: Map.put(pkg.priv, :executable_name, name)}
 
     # Unsafe binary removal of "Erlang", needs same length!
     file_replace(beam, "Erlang", binary_part(pkg.name <> <<0, 0, 0, 0, 0, 0>>, 0, 6))

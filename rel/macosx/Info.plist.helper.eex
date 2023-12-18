@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string><%= @name %> webview helper</string>
+	<string><%= @name %></string>
 	<key>CFBundleDisplayName</key>
 	<string><%= @display_name %></string>
 	<key>CFBundleDevelopmentRegion</key>

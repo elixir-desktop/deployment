@@ -29,7 +29,15 @@ defmodule Desktop.Deployment.Package.MacOS do
     resources = Path.join(contents, "Resources")
 
     File.mkdir_p!(bindir)
-    File.mkdir_p!(resources)
+
+    content = eval_eex(Path.join(mac_tools, "InfoPlist.strings.eex"), rel, pkg)
+    utf8bom = <<0xEF, 0xBB, 0xBF>>
+
+    for lang <- ["en", "Base"] do
+      langdir = Path.join(resources, "#{lang}.lproj")
+      File.mkdir_p!(langdir)
+      File.write!(Path.join(langdir, "InfoPlist.strings"), utf8bom <> content)
+    end
 
     content = eval_eex(Path.join(mac_tools, "Info.plist.eex"), rel, pkg)
     File.write!(Path.join(contents, "Info.plist"), content)
@@ -174,26 +182,27 @@ defmodule Desktop.Deployment.Package.MacOS do
     frameworks = Path.join(contents, "Frameworks")
     File.mkdir_p!(frameworks)
     cef = Path.join(Path.dirname(webview), "Chromium Embedded Framework.framework")
-    File.ln_s!(cef, Path.join(frameworks, "Chromium Embedded Framework.framework"))
-
-    helper_contents = Path.join([frameworks, "webview_helper.app", "Contents"])
-    File.mkdir_p!(Path.join(helper_contents, "MacOS"))
-    File.mkdir_p!(Path.join(helper_contents, "Resources"))
+    File.rename!(cef, Path.join(frameworks, "Chromium Embedded Framework.framework"))
 
     # Collecting plist content
     base = Mix.Project.deps_paths()[:desktop_deployment]
     mac_tools = Path.absname("#{base}/rel/macosx")
     filename = Path.join(mac_tools, "Info.plist.helper.eex")
-    app_name = pkg.name_long || pkg.name
-    helper_name = "#{app_name} helper"
+    app_name = pkg.priv.executable_name
+    helper_name = "#{app_name} Helper"
+    executable_name = "#{app_name} Helper"
     version = pkg.release.version
+
+    helper_contents = Path.join([frameworks, "#{helper_name}.app", "Contents"])
+    File.mkdir_p!(Path.join(helper_contents, "MacOS"))
+    File.mkdir_p!(Path.join(helper_contents, "Resources"))
 
     plist =
       EEx.eval_file(filename,
         assigns: [
           name: helper_name,
           display_name: helper_name,
-          executable: "webview",
+          executable: executable_name,
           identifier: pkg.identifier <> ".helper",
           version: version,
           short_version_string: version
@@ -209,52 +218,63 @@ defmodule Desktop.Deployment.Package.MacOS do
       end
     end)
 
-    File.rename!(webview, Path.join(helper_contents, "MacOS/webview"))
+    File.rename!(webview, Path.join(helper_contents, "MacOS/#{executable_name}"))
 
     icon_path = Path.join(mac_tools, "icons.icns")
     File.cp!(icon_path, Path.join(helper_contents, "Resources/icons.icns"))
 
     for name <- ~w(Alerts GPU Plugin Renderer) do
-      helper_name = "#{app_name} helper (#{name})"
-      helper_contents = Path.join(frameworks, "#{helper_name}.app/Contents")
-      File.mkdir_p!(Path.join(helper_contents, "MacOS"))
+      sub_helper_name = "#{app_name} Helper (#{name})"
+
+      # File.ln_s!(
+      #   "./#{helper_name}.app",
+      #   Path.join(frameworks, "#{sub_helper_name}.app")
+      # )
+
+      sub_helper_contents = Path.join(frameworks, "#{sub_helper_name}.app/Contents")
+      File.mkdir_p!(Path.join(sub_helper_contents, "MacOS"))
       # Conserving disk space
       File.ln_s!(
-        "../../../webview_helper.app/Contents/MacOS/webview",
-        Path.join(helper_contents, "MacOS/webview")
+        "../../../#{helper_name}.app/Contents/MacOS/#{executable_name}",
+        Path.join(sub_helper_contents, "MacOS/#{sub_helper_name}")
       )
 
       plist =
         EEx.eval_file(filename,
           assigns: [
-            name: helper_name,
-            display_name: helper_name,
-            executable: "webview",
+            name: sub_helper_name,
+            display_name: sub_helper_name,
+            executable: sub_helper_name,
             identifier: pkg.identifier <> ".helper",
             version: version,
             short_version_string: version
           ]
         )
 
-      File.write!(Path.join(helper_contents, "Info.plist"), plist)
-      File.write!(Path.join(helper_contents, "PkgInfo"), "APPL????")
+      File.write!(Path.join(sub_helper_contents, "Info.plist"), plist)
+      File.write!(Path.join(sub_helper_contents, "PkgInfo"), "APPL????")
     end
 
     pkg
   end
 
   def find_deps(object) do
-    cmd!("otool", ["-L", object])
-    |> String.split("\n")
-    |> tl()
-    |> Enum.map(fn row ->
-      # There can be spaces in lib names so splitting on space is not good enough
-      case String.split(row, "(compatibility") do
-        [path | _] -> String.trim(path) |> String.trim(":")
-        _other -> nil
-      end
-    end)
-    |> Enum.filter(&is_binary/1)
+    # otool -L can't handle filenames such as "webview (Alerts)"
+    if String.ends_with?(object, ")") do
+      []
+    else
+      cmd!("otool", ["-L", object])
+      |> String.split("\n")
+      |> tl()
+      |> Enum.map(fn row ->
+        # There can be spaces in lib names so splitting on space is not good enough
+        case String.split(row, "(compatibility") do
+          [path | _] -> String.trim(path) |> String.trim(":")
+          _other -> nil
+        end
+      end)
+      |> Enum.filter(&is_binary/1)
+    end
   end
 
   defp should_rewrite?(bin, dep) do
@@ -363,7 +383,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     else
       keychain =
         case System.get_env("MACOS_KEYCHAIN") do
-          nil -> cmd("security", ["login-keychain"])
+          nil -> cmd("security", ["login-keychain"]) |> String.trim() |> String.trim("\"")
           keychain -> keychain
         end
 
@@ -438,8 +458,12 @@ defmodule Desktop.Deployment.Package.MacOS do
       |> Enum.reject(fn file -> String.contains?(Path.basename(file), ".") end)
       |> Enum.filter(fn file -> Bitwise.band(0o100, File.lstat!(file).mode) != 0 end)
 
+    frameworks = wildcard(root, "**/Contents/MacOS/*")
+
     (bins ++ libs)
     |> Enum.filter(fn file -> File.lstat!(file).type == :regular end)
+    |> Enum.concat(frameworks)
+    |> Enum.uniq()
   end
 
   def codesign(developer_id, root) do
@@ -453,6 +477,13 @@ defmodule Desktop.Deployment.Package.MacOS do
 
     File.write!("codesign.log", Enum.join(to_sign, "\n"))
 
+    # If there are any Frameworks embedded we have to sign them first
+    # otherwise codesign will give up with an error like: `MacOS/run: code object is not signed at all\nIn subcomponent .../Framework`
+    {frameworks, rest} =
+      Enum.split_with(to_sign, fn path -> String.contains?(path, "/Frameworks/") end)
+
+    to_sign = frameworks ++ rest
+
     # Signing binaries in app directory
     Enum.chunk_every(to_sign, 10)
     |> Enum.each(fn chunk ->
@@ -461,6 +492,8 @@ defmodule Desktop.Deployment.Package.MacOS do
       cmd!(
         "codesign",
         [
+          "--keychain",
+          keychain(),
           "-f",
           "-s",
           developer_id,
@@ -476,6 +509,8 @@ defmodule Desktop.Deployment.Package.MacOS do
     cmd!(
       "codesign",
       [
+        "--keychain",
+        keychain(),
         "-f",
         "-s",
         developer_id,
