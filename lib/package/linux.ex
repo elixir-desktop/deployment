@@ -18,6 +18,7 @@ defmodule Desktop.Deployment.Package.Linux do
     import_pixbuf_loaders(pkg, deps)
     pkg = import_webkit(pkg, deps)
     import_libgstreamer_modules(pkg, deps)
+    import_immodules(pkg, deps)
     import_libgio_modules(pkg, deps)
     import_inotifywait(pkg)
 
@@ -90,6 +91,34 @@ defmodule Desktop.Deployment.Package.Linux do
       File.mkdir_p!(Path.join(priv(pkg), "gst/modules"))
       files = wildcard(Path.dirname(libgst), "gstreamer-1.0/*.so")
       for file <- files, do: priv_import!(pkg, file, extra_path: ["gst/modules"])
+    end
+  end
+
+  defp import_immodules(%Package{} = pkg, deps) do
+    libgtk = Enum.find(deps, fn lib -> String.starts_with?(Path.basename(lib), "libgtk-3") end)
+
+    if libgtk != nil do
+      [loader | _] = :filelib.wildcard('#{Path.dirname(libgtk)}/libgtk-3-*/gtk-query-immodules-*')
+
+      {loaders, 0} = System.cmd("#{loader}", [])
+
+      libs =
+        Regex.scan(~r/[^"]+\.so/, loaders)
+        |> List.flatten()
+
+      File.mkdir_p!(Path.join(priv(pkg), "immodules"))
+      for lib <- libs, do: priv_import!(pkg, lib, extra_path: ["immodules"])
+
+      loaders =
+        Enum.reduce(libs, loaders, fn lib, loaders ->
+          String.replace(
+            loaders,
+            lib,
+            Path.join([relative_priv(pkg), "immodules", Path.basename(lib)])
+          )
+        end)
+
+      File.write!(Path.join(priv(pkg), "immodules.cache"), loaders)
     end
   end
 
