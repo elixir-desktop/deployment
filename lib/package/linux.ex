@@ -17,6 +17,7 @@ defmodule Desktop.Deployment.Package.Linux do
 
     import_pixbuf_loaders(pkg, deps)
     pkg = import_webkit(pkg, deps)
+    maybe_import_webview(pkg)
     import_libgstreamer_modules(pkg, deps)
     import_immodules(pkg, deps)
     import_libgio_modules(pkg, deps)
@@ -31,6 +32,21 @@ defmodule Desktop.Deployment.Package.Linux do
 
     import_nss(pkg, deps)
     pkg
+  end
+
+  defp maybe_import_webview(%Package{} = pkg) do
+    webview =
+      priv(pkg)
+      |> :filelib.fold_files('^webview$', true, fn elem, acc -> [elem | acc] end, [])
+      |> List.first()
+
+    if webview != nil do
+      [executable] = wildcard(pkg.release, "**/#{pkg.priv.executable_name}")
+      base = Path.basename(executable) |> Path.rootname()
+      ext = Path.extname(executable)
+      helper = Path.join(Path.dirname(executable), "#{base}_cef_helper#{ext}")
+      File.rename!(webview, helper)
+    end
   end
 
   defp import_inotifywait(%Package{release: rel} = pkg) do
