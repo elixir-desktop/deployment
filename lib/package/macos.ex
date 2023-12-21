@@ -4,6 +4,7 @@ defmodule Desktop.Deployment.Package.MacOS do
   """
   import Desktop.Deployment.Tooling
   alias Desktop.Deployment.Package
+  require Logger
 
   def import_extra_files(%Package{release: %Mix.Release{} = rel} = pkg) do
     # Importing dependend libraries
@@ -390,6 +391,10 @@ defmodule Desktop.Deployment.Package.MacOS do
       case cmd_raw("security", ["show-keychain-info", keychain]) do
         {_, 36} ->
           raise "Keychain #{keychain} is not unlocked run `security unlock-keychain #{keychain}` to unlock it and try again"
+
+        {_, 50} ->
+          Logger.info("Keychain #{keychain} does not exist, creating it")
+          cmd!("security", ["create-keychain", "-p", "", keychain])
 
         {_, 0} ->
           :ok
