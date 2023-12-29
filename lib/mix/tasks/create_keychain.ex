@@ -5,11 +5,12 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
   @shortdoc "Creates a new keychain."
   def run(_args) do
     name = "macos-build.keychain"
+    pass = "actions"
     base = Mix.Project.deps_paths()[:desktop_deployment] || ""
     mac_tools = Path.join(base, "rel/macosx")
 
     # security(["delete-keychain", name])
-    security(["create-keychain", "-p", "actions", name])
+    security(["create-keychain", "-p", pass, name])
 
     security([
       "import",
@@ -19,7 +20,19 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
     ])
 
     security(["list-keychains", "-s", name])
-    security(["unlock-keychain", "-p", "actions", name])
+
+    # https://stackoverflow.com/questions/39868578/security-codesign-in-sierra-keychain-ignores-access-control-settings-and-ui-p
+    security([
+      "set-key-partition-list",
+      "-S",
+      "apple-tool:,apple:,codesign:",
+      "-s",
+      "-k",
+      pass,
+      name
+    ])
+
+    security(["unlock-keychain", "-p", pass, name])
     security(["set-keychain-settings", "-t", "3600", "-u", name])
     IO.puts(Path.join([System.get_env("HOME"), "Library/Keychains", name]))
   end
