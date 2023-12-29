@@ -328,6 +328,7 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   @uid_attribute {0, 9, 2342, 19_200_300, 100, 1, 1}
+  @friendly_attribute {2, 5, 4, 3}
   def locate_uid(pem_filename) do
     cert = File.read!(pem_filename)
     cert_der = List.keyfind!(:public_key.pem_decode(cert), :Certificate, 0)
@@ -347,8 +348,8 @@ defmodule Desktop.Deployment.Package.MacOS do
       System.get_env("MACOS_PEM") != nil ->
         file = "tmp.pem"
         File.write!(file, System.get_env("MACOS_PEM"))
-        uid = locate_uid(file) || raise "Could not parse PEM"
-        maybe_import_pem(file, uid)
+        uids = locate_uid(file) || raise "Could not locate UID in PEM"
+        uid = maybe_import_pem(file, uids)
 
         # Caching for next call
         if uid != nil do
@@ -361,12 +362,17 @@ defmodule Desktop.Deployment.Package.MacOS do
     end
   end
 
-  defp maybe_import_pem(file, uid) do
-    if not String.contains?(find_identity(), uid) do
+  defp do_find_developer_id(uids) do
+    ids = find_identity()
+    Enum.find(uids, fn uid -> String.contains?(ids, uid) end)
+  end
+
+  def maybe_import_pem(file, uids) do
+    with nil <- do_find_developer_id(uids) do
       cmd("security", ["import", file, "-k", keychain()])
 
-      if not String.contains?(find_identity(), uid) do
-        raise "Failed to import PEM for uid #{uid}"
+      with nil <- do_find_developer_id(uids) do
+        raise "Failed to import PEM for uid #{inspect(uids)}"
       end
     end
   end
@@ -447,13 +453,20 @@ defmodule Desktop.Deployment.Package.MacOS do
     ])
   end
 
-  defp scan({:AttributeTypeAndValue, @uid_attribute, uid}) do
-    String.trim(uid)
+  defp scan({:AttributeTypeAndValue, @friendly_attribute, friendly}) do
+    case Regex.scan(~r/\(([^)]+)\)$/, friendly) do
+      [[_full, uid]] -> [uid]
+      _ -> []
+    end
   end
 
-  defp scan([head | tail]), do: scan(head) || scan(tail)
+  defp scan({:AttributeTypeAndValue, @uid_attribute, uid}) do
+    [String.trim(uid)]
+  end
+
+  defp scan([head | tail]), do: scan(head) ++ scan(tail)
   defp scan(tuple) when is_tuple(tuple), do: scan(Tuple.to_list(tuple))
-  defp scan(_), do: nil
+  defp scan(_), do: []
 
   def find_binaries(root) do
     libs = wildcard(root, "**/*.so") ++ wildcard(root, "**/*.dylib") ++ wildcard(root, "**/*.smp")
