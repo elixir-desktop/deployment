@@ -5,9 +5,8 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
   @shortdoc "Creates a new keychain."
   def run(_args) do
     name = "macos-build.keychain"
-
     base = Mix.Project.deps_paths()[:desktop_deployment] || ""
-    mac_tools = Path.join(base, "rel/macosx") |> IO.inspect()
+    mac_tools = Path.join(base, "rel/macosx")
 
     # security(["delete-keychain", name])
     security(["create-keychain", "-p", "actions", name])
