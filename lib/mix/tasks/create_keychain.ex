@@ -6,12 +6,15 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
   def run(_args) do
     name = "macos-build.keychain"
 
+    base = Mix.Project.deps_paths()[:desktop_deployment] || ""
+    mac_tools = Path.join(base, "rel/macosx") |> IO.inspect()
+
     # security(["delete-keychain", name])
     security(["create-keychain", "-p", "actions", name])
 
     security([
       "import",
-      "rel/macosx/Apple Worldwide Developer Relations Certification Authority.pem",
+      "#{mac_tools}/Apple Worldwide Developer Relations Certification Authority.pem",
       "-k",
       "macos-build.keychain"
     ])
