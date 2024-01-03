@@ -22,10 +22,12 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
     security(["list-keychains", "-s", name])
 
     # https://stackoverflow.com/questions/39868578/security-codesign-in-sierra-keychain-ignores-access-control-settings-and-ui-p
+    # https://github.com/lando/code-sign-action/blob/main/action.yml
     security([
       "set-key-partition-list",
       "-S",
-      "apple-tool:,apple:,codesign:",
+      # "apple-tool:,apple:,codesign:",
+      "apple-tool:,apple:",
       "-s",
       "-k",
       pass,
