@@ -1,7 +1,7 @@
 name: "test mix.create_keychain"
 on: ["push", "pull_request"]
 env:
-  OTP_VERSION: OTP-24.3.4.13
+  OTP_VERSION: 24.3.4.15
   ELIXIR_VERSION: 1.14.5
   ELIXIR_VARIANT: -otp-24
 
