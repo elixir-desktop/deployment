@@ -44,4 +44,7 @@ jobs:
         echo "erlang ${{ env.OTP_VERSION }}" > .tool-versions
         echo "elixir ${{ env.ELIXIR_VERSION }}${{ env.ELIXIR_VARIANT }}" >> .tool-versions
         . $HOME/.asdf/asdf.sh
+        mix local.hex --force
+        mix local.rebar --force
+        mix deps.get
         mix desktop.create_keychain
