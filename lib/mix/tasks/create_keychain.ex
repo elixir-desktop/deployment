@@ -18,8 +18,10 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
       "-k",
       "macos-build.keychain"
     ])
-
-    security(["list-keychains", "-s", name])
+    # security(["list-keychains", "-s", name])
+    security(["default-keychain", "-s", "macos-build.keychain"])
+    security(["unlock-keychain", "-p", pass, name])
+    security(["set-keychain-settings", "-t", "3600", "-u", name])
 
     # https://stackoverflow.com/questions/39868578/security-codesign-in-sierra-keychain-ignores-access-control-settings-and-ui-p
     # https://github.com/lando/code-sign-action/blob/main/action.yml
@@ -34,8 +36,6 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
       name
     ])
 
-    security(["unlock-keychain", "-p", pass, name])
-    security(["set-keychain-settings", "-t", "3600", "-u", name])
     IO.puts(Path.join([System.get_env("HOME"), "Library/Keychains", name]))
   end
 
