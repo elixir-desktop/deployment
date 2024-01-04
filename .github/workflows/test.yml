@@ -22,9 +22,11 @@ jobs:
         git clone https://github.com/asdf-vm/asdf.git ~/.asdf
         . $HOME/.asdf/asdf.sh
         asdf plugin add erlang
-        asdf plugin add elixir
+        asdf plugin add elixir        
         echo "erlang ${{ env.OTP_VERSION }}" >> .tool-versions
         echo "elixir ${{ env.ELIXIR_VERSION }}${{ env.ELIXIR_VARIANT }}" >> .tool-versions
+
+        brew install binutils coreutils wget wxwidgets automake autoconf libtool
         asdf install
 
     - name: Save asdf cache
