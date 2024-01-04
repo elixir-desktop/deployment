@@ -1,5 +1,6 @@
 defmodule Mix.Tasks.Desktop.CreateKeychain do
   use Mix.Task
+  import Desktop.Deployment.Package.MacOS
   @moduledoc false
 
   @shortdoc "Creates a new keychain."
@@ -8,9 +9,15 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
     pass = "actions"
     base = Mix.Project.deps_paths()[:desktop_deployment] || ""
     mac_tools = Path.join(base, "rel/macosx")
+    full_path = Path.join([System.get_env("HOME"), "Library/Keychains", name])
+    pem = System.get_env("MACOS_PEM") || raise "No MACOS_PEM env var"
 
-    # security(["delete-keychain", name])
+    if File.exists?(full_path) or File.exists?(full_path <> "-db") do
+      security(["delete-keychain", name])
+    end
+
     security(["create-keychain", "-p", pass, name])
+    System.put_env("MACOS_KEYCHAIN", full_path)
 
     security([
       "import",
@@ -18,8 +25,14 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
       "-k",
       "macos-build.keychain"
     ])
-    # security(["list-keychains", "-s", name])
-    security(["default-keychain", "-s", "macos-build.keychain"])
+
+    file = "tmp.pem"
+    File.write!(file, pem)
+    uids = locate_uid(file) || raise "Could not locate UID in PEM"
+    maybe_import_pem(file, uids)
+
+    security(["list-keychains", "-s", name])
+    # security(["default-keychain", "-s", "macos-build.keychain"])
     security(["unlock-keychain", "-p", pass, name])
     security(["set-keychain-settings", "-t", "3600", "-u", name])
 
@@ -28,18 +41,18 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
     security([
       "set-key-partition-list",
       "-S",
-      # "apple-tool:,apple:,codesign:",
-      "apple-tool:,apple:",
+      "apple-tool:,apple:,codesign:",
       "-s",
       "-k",
       pass,
       name
     ])
 
-    IO.puts(Path.join([System.get_env("HOME"), "Library/Keychains", name]))
+    IO.puts(full_path)
   end
 
   defp security(args) do
+    IO.puts("Running: security #{Enum.join(args, " ")}")
     {_, 0} = System.cmd("security", args)
   end
 end
