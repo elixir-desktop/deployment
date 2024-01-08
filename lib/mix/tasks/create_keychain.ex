@@ -4,6 +4,15 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
   @moduledoc false
 
   @shortdoc "Creates a new keychain."
+  def run(["maybe"]) do
+    pem = String.trim(System.get_env("MACOS_PEM") || "")
+    if byte_size(pem) == 0 do
+      Mix.Shell.IO.info("No MACOS_PEM env var defined, skipping")
+    else
+      run([])
+    end
+  end
+
   def run(_args) do
     name = "macos-build.keychain"
     pass = "actions"
