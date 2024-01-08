@@ -19,11 +19,17 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
     security(["create-keychain", "-p", pass, name])
     System.put_env("MACOS_KEYCHAIN", full_path)
 
+    security(["list-keychains", "-s", name])
+    # security(["default-keychain", "-s", name])
+    security(["unlock-keychain", "-p", pass, name])
+    security(["set-keychain-settings", "-t", "3600", "-u", name])
+
     security([
       "import",
       "#{mac_tools}/Apple Worldwide Developer Relations Certification Authority.pem",
       "-k",
-      "macos-build.keychain"
+      "macos-build.keychain",
+      "-A"
     ])
 
     file = "tmp.pem"
@@ -31,10 +37,6 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
     uids = locate_uid(file) || raise "Could not locate UID in PEM"
     maybe_import_pem(file, uids)
 
-    security(["list-keychains", "-s", name])
-    # security(["default-keychain", "-s", "macos-build.keychain"])
-    security(["unlock-keychain", "-p", pass, name])
-    security(["set-keychain-settings", "-t", "3600", "-u", name])
 
     # https://stackoverflow.com/questions/39868578/security-codesign-in-sierra-keychain-ignores-access-control-settings-and-ui-p
     # https://github.com/lando/code-sign-action/blob/main/action.yml

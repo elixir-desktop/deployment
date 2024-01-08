@@ -87,7 +87,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     developer_id = Package.MacOS.find_developer_id()
 
     if developer_id != nil do
-      codesign(developer_id, root)
+      codesign(root)
     end
 
     dmg = make_dmg(pkg)
@@ -369,7 +369,7 @@ defmodule Desktop.Deployment.Package.MacOS do
 
   def maybe_import_pem(file, uids) do
     with nil <- do_find_developer_id(uids) do
-      cmd("security", ["import", file, "-k", keychain()])
+      cmd("security", ["import", file, "-k", keychain(), "-A"])
 
       with nil <- do_find_developer_id(uids) do
         raise "Failed to import PEM for uid #{inspect(uids)}"
@@ -484,7 +484,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     |> Enum.uniq()
   end
 
-  def codesign(developer_id, root) do
+  def codesign(root) do
     # Codesign all executable code in the package with timestamp and
     # hardened runtime. This is a prerequisite for notarization.
     to_sign = find_binaries(root)
@@ -505,40 +505,38 @@ defmodule Desktop.Deployment.Package.MacOS do
     # Signing binaries in app directory
     Enum.chunk_every(to_sign, 10)
     |> Enum.each(fn chunk ->
-      IO.puts("Signing #{inspect(chunk)}")
-
-      cmd!(
-        "codesign",
-        [
-          "--keychain",
-          keychain(),
-          "-f",
-          "-s",
-          developer_id,
-          "--timestamp",
-          "--options=runtime",
-          "--entitlements",
-          entitlements | chunk
-        ]
-      )
+      codesign_executable(chunk, entitlements: entitlements)
     end)
 
     # Signing app directory itself
-    cmd!(
-      "codesign",
+    codesign_executable(root, entitlements: entitlements)
+  end
+
+  def codesign_executable(objects, opts \\ []) do
+    args =
       [
         "--keychain",
         keychain(),
         "-f",
         "-s",
-        developer_id,
+        find_developer_id(),
         "--timestamp",
-        "--options=runtime",
-        "--entitlements",
-        entitlements,
-        root
-      ]
-    )
+        "--options=runtime"
+      ] ++ add_codesign_args(opts) ++ List.wrap(objects)
+
+    cmd!("codesign", args)
+  end
+
+  defp add_codesign_args([{:entitlements, entitlements} | opts]) do
+    ["--entitlements", entitlements] ++ add_codesign_args(opts)
+  end
+
+  defp add_codesign_args([]) do
+    []
+  end
+
+  defp add_codesign_args(other) do
+    raise "Unknown codesign args #{inspect(other)}"
   end
 
   # openssl genrsa -out mock.key 2048
