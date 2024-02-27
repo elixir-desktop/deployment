@@ -6,14 +6,14 @@ defmodule Mix.Tasks.Desktop.Installer do
   @shortdoc "Creates a platform specific installer package."
   def run(_args, config \\ Mix.Project.config()) do
     release =
-      Enum.find(config[:releases], fn {_name, rel} ->
+      Enum.find(config[:releases] || [], fn {_name, rel} ->
         steps = Keyword.get(rel, :steps, [])
         Enum.member?(steps, &Desktop.Deployment.generate_installer/1)
       end)
 
     if release == nil do
       IO.puts("""
-        Desktop.Installer couldn't find a release steps configured
+        Desktop.Installer couldn't find a release with steps configured
         to include the Deployment task `&Desktop.Deployment.generate_installer/1`.
 
         Add the `generate_installer/1` callback at least to one of your
