@@ -56,6 +56,12 @@ defmodule Desktop.Deployment.Package do
     build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
     File.write!(Path.join(build_root, "app.exe.manifest"), content)
 
+    # fetch extra env file
+    if File.exists?("rel/win32/app.env.eex") do
+      content = eval_eex("rel/win32/app.env.eex", rel, pkg)
+      File.write!(new_name <> ".env", content)
+    end
+
     git_version =
       with {version, 0} <- System.cmd("git", ["describe", "--tags", "--always"]) do
         String.trim(version)
