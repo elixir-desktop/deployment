@@ -84,12 +84,11 @@ defmodule Desktop.Deployment.Package do
     for bin <- [new_name, beam, erlexec] do
       # Unsafe binary removal of "Erlang", needs same length!
       file_replace(bin, "Erlang", binary_part(pkg.name <> <<0, 0, 0, 0, 0, 0>>, 0, 6))
+      cmd!(Path.join(windows_tools, "rcedit.exe"), ["/I", bin, icon])
 
       :ok =
         Mix.Tasks.Pe.Update.run(
           [
-            "--set-icon",
-            icon,
             "--set-manifest",
             Path.join(build_root, "app.exe.manifest")
           ] ++ info ++ [bin]
