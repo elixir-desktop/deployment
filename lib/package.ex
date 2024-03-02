@@ -182,15 +182,15 @@ defmodule Desktop.Deployment.Package do
       win32_codesign(signfun, build_root)
     end
 
-    {:ok, cur} = :file.get_cwd()
-    :file.set_cwd(String.to_charlist(rel_path))
-
     nsi_file =
       if File.exists?("rel/win32/app.nsi.eex") do
-        "rel/win32/app.nsi.eex"
+        Path.absname("rel/win32/app.nsi.eex")
       else
         Path.join(windows_tools, "app.nsi.eex")
       end
+
+    {:ok, cur} = :file.get_cwd()
+    :file.set_cwd(String.to_charlist(rel_path))
 
     content = eval_eex(nsi_file, rel, pkg)
     File.write!(Path.join(build_root, "app.nsi"), content)
