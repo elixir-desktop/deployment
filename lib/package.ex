@@ -89,6 +89,8 @@ defmodule Desktop.Deployment.Package do
       :ok =
         Mix.Tasks.Pe.Update.run(
           [
+            "--set-subsystem",
+            "IMAGE_SUBSYSTEM_WINDOWS_GUI",
             "--set-manifest",
             Path.join(build_root, "app.exe.manifest")
           ] ++ info ++ [bin]
