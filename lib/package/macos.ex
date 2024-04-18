@@ -96,7 +96,7 @@ defmodule Desktop.Deployment.Package.MacOS do
       package_sign(developer_id, dmg)
     end
 
-    :ok
+    %{pkg | priv: Map.put(pkg.priv, :installer_name, dmg)}
   end
 
   def package_sign(developer_id, dmg) do
@@ -171,7 +171,7 @@ defmodule Desktop.Deployment.Package.MacOS do
 
   defp maybe_import_webview(%Package{} = pkg, contents) do
     webview =
-      :filelib.fold_files(contents, '^webview$', true, fn elem, acc -> [elem | acc] end, [])
+      :filelib.fold_files(contents, ~c"^webview$", true, fn elem, acc -> [elem | acc] end, [])
       |> List.first()
 
     if webview != nil do
@@ -264,18 +264,22 @@ defmodule Desktop.Deployment.Package.MacOS do
     if String.ends_with?(object, ")") do
       []
     else
-      cmd!("otool", ["-L", object])
-      |> String.split("\n")
-      |> tl()
-      |> Enum.map(fn row ->
-        # There can be spaces in lib names so splitting on space is not good enough
-        case String.split(row, "(compatibility") do
-          [path | _] -> String.trim(path) |> String.trim(":")
-          _other -> nil
-        end
-      end)
-      |> Enum.filter(&is_binary/1)
+      do_find_deps(object)
     end
+  end
+
+  defp do_find_deps(object) do
+    cmd!("otool", ["-L", object])
+    |> String.split("\n")
+    |> tl()
+    |> Enum.map(fn row ->
+      # There can be spaces in lib names so splitting on space is not good enough
+      case String.split(row, "(compatibility") do
+        [path | _] -> String.trim(path) |> String.trim(":")
+        _other -> nil
+      end
+    end)
+    |> Enum.filter(&is_binary/1)
   end
 
   defp should_rewrite?(bin, dep) do

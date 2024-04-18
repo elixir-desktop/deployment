@@ -3,25 +3,12 @@ defmodule Desktop.Deployment do
   require Logger
   @moduledoc false
 
-  def prepare_release(%Mix.Release{options: options} = rel) do
-    base = Mix.Project.deps_paths()[:desktop_deployment]
-    templates = Path.absname("#{base}/rel")
-
-    %Mix.Release{
-      rel
-      | options:
-          Keyword.put(options, :rel_templates_path, templates)
-          |> Keyword.put(:quiet, true)
-          |> Keyword.put(:package, default_package(nil))
-    }
-  end
-
   def package(rel \\ nil) do
     config = Mix.Project.config()
 
     case config[:package] do
       nil ->
-        Logger.warn(
+        Logger.warning(
           "There is no package config defined. Using the generic Elixir App descriptions."
         )
 
@@ -44,9 +31,21 @@ defmodule Desktop.Deployment do
     end
 
     package =
-      package(rel)
+      prepare_release(rel)
+      |> package()
       |> Package.copy_extra_files()
       |> Package.create_installer()
+
+    IO.puts("")
+    IO.puts("Thanks for using elixir-desktop")
+
+    case package do
+      %{priv: %{installer_name: installer_name}} ->
+        IO.puts("Installer created at #{installer_name}")
+
+      %{} ->
+        IO.puts("No installer created")
+    end
 
     package.release
   end
@@ -72,6 +71,18 @@ defmodule Desktop.Deployment do
       # defined during the process
       app_name: app_name,
       release: rel
+    }
+  end
+
+  defp prepare_release(%Mix.Release{options: options} = rel) do
+    base = Mix.Project.deps_paths()[:desktop_deployment]
+    templates = Path.absname("#{base}/rel")
+
+    %Mix.Release{
+      rel
+      | options:
+          Keyword.put(options, :rel_templates_path, templates)
+          |> Keyword.put(:quiet, true)
     }
   end
 end

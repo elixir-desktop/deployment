@@ -37,7 +37,7 @@ defmodule Desktop.Deployment.Package.Linux do
   defp maybe_import_webview(%Package{} = pkg) do
     webview =
       priv(pkg)
-      |> :filelib.fold_files('^webview$', true, fn elem, acc -> [elem | acc] end, [])
+      |> :filelib.fold_files(~c"^webview$", true, fn elem, acc -> [elem | acc] end, [])
       |> List.first()
 
     if webview != nil do
@@ -114,7 +114,8 @@ defmodule Desktop.Deployment.Package.Linux do
     libgtk = Enum.find(deps, fn lib -> String.starts_with?(Path.basename(lib), "libgtk-3") end)
 
     if libgtk != nil do
-      [loader | _] = :filelib.wildcard('#{Path.dirname(libgtk)}/libgtk-3-*/gtk-query-immodules-*')
+      [loader | _] =
+        :filelib.wildcard(~c"#{Path.dirname(libgtk)}/libgtk-3-*/gtk-query-immodules-*")
 
       {loaders, 0} = System.cmd("#{loader}", [])
 
@@ -165,7 +166,7 @@ defmodule Desktop.Deployment.Package.Linux do
 
     if libgdk != nil do
       [loader | _] =
-        :filelib.wildcard('#{Path.dirname(libgdk)}/gdk-pixbuf-*/gdk-pixbuf-query-loaders')
+        :filelib.wildcard(~c"#{Path.dirname(libgdk)}/gdk-pixbuf-*/gdk-pixbuf-query-loaders")
 
       {loaders, 0} = System.cmd("#{loader}", [])
 

@@ -47,6 +47,7 @@ jobs:
         mix local.hex --force
         mix local.rebar --force
         mix deps.get
+        mix lint
         mix desktop.create_keychain
         export MACOS_KEYCHAIN=$HOME/Library/Keychains/macos-build.keychain
         mix test test/codesign_test.exs

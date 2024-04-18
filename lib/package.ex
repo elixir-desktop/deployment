@@ -167,8 +167,6 @@ defmodule Desktop.Deployment.Package do
       Linux -> linux_release(pkg)
       Windows -> windows_release(pkg)
     end
-
-    pkg
   end
 
   defp windows_release(%Package{release: %Mix.Release{path: rel_path, version: vsn} = rel} = pkg) do
@@ -198,14 +196,14 @@ defmodule Desktop.Deployment.Package do
     File.write!(Path.join(build_root, "app.nsi"), content)
     cmd!("makensis", ["-NOCD", "-DVERSION=#{vsn}", Path.join(build_root, "app.nsi")])
     :file.set_cwd(cur)
+    outfile = "#{pkg.name}-#{vsn}-win32.exe"
 
     if signfun != nil do
-      outfile = "#{pkg.name}-#{vsn}-win32.exe"
       path = Path.join([build_root, outfile])
       signfun.(path)
     end
 
-    :ok
+    %{pkg | priv: Map.put(pkg.priv, :installer_name, outfile)}
   end
 
   defp linux_release(%Package{release: %Mix.Release{path: rel_path, version: vsn} = rel} = pkg) do
@@ -240,7 +238,7 @@ defmodule Desktop.Deployment.Package do
       "./install"
     ])
 
-    :ok
+    %{pkg | priv: Map.put(pkg.priv, :installer_name, out_file)}
   end
 
   def win32_codesign(signfun, root) do
