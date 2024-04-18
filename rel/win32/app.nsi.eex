@@ -202,7 +202,10 @@ Delete "$QUICKLAUNCH\<%= @package.name_long || @package.name %>.lnk"
 SetShellVarContext current
 Delete "$DESKTOP\<%= @package.name_long || @package.name %>.lnk"
 Delete "$QUICKLAUNCH\<%= @package.name_long || @package.name %>.lnk"
-RMDir /r "$INSTDIR"
+ExecShellWait "" "$SysDir\taskkill.exe" "/f /im heart.exe" SW_HIDE
+ExecShellWait "" "$SysDir\taskkill.exe" "/f /im epmd.exe" SW_HIDE
+ExecShellWait "" "$SysDir\taskkill.exe" "/f /im <%= @package.name %>.exe" SW_HIDE
+RMDir /r /REBOOTOK "$INSTDIR"
 
 ;Remove shortcut
 ReadRegStr $MYTEMP "${MY_STARTMENUPAGE_REGISTRY_ROOT}" \
