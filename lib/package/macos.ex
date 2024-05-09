@@ -32,7 +32,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     File.mkdir_p!(bindir)
 
     content = eval_eex(Path.join(mac_tools, "InfoPlist.strings.eex"), rel, pkg)
-    utf8bom = <<0xEF, 0xBB, 0xBF>>
+    utf8bom = :unicode.encoding_to_bom(:utf8)
 
     for lang <- ["en", "Base"] do
       langdir = Path.join(resources, "#{lang}.lproj")
