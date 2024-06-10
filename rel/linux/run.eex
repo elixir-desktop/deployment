@@ -84,6 +84,8 @@ release_distribution () {
 
 rpc () {
   export ELIXIR_ERL_OPTIONS=${ELIXIR_ERL_OPTIONS//-heart/}
+  export EPMD=`find . -name epmd -type f | tail -n1`
+  export RELEASE_NODE=`$EPMD -names | grep "name <%= @package.app_name %>" | grep -oE "<%= @package.app_name %>_[0-9]+"`@127.0.0.1
   exec "$REL_VSN_DIR/elixir" \
        --hidden --cookie "$RELEASE_COOKIE" \
        $(release_distribution "rpc-$(rand)-$RELEASE_NODE") \
@@ -157,6 +159,9 @@ case $RELEASE_COMMAND in
     ;;
 
   remote)
+    export ELIXIR_ERL_OPTIONS=${ELIXIR_ERL_OPTIONS//-heart/}
+    export EPMD=`find . -name epmd -type f | tail -n1`
+    export RELEASE_NODE=`$EPMD -names | grep "name <%= @package.app_name %>" | grep -oE "<%= @package.app_name %>_[0-9]+"`@127.0.0.1
     exec "$REL_VSN_DIR/iex" \
          --werl --hidden --cookie "$RELEASE_COOKIE" \
          $(release_distribution "rem-$(rand)-$RELEASE_NODE") \
