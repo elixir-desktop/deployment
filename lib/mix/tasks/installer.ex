@@ -40,7 +40,7 @@ defmodule Mix.Tasks.Desktop.Installer do
     {_ret, status} =
       System.cmd("mix", ["release", Atom.to_string(name), "--overwrite"],
         env: [{"MIX_ENV", "prod"}],
-        into: IO.stream(:stdio, :line),
+        into: IO.binstream(:stdio, :line),
         stderr_to_stdout: true
       )
 
