@@ -442,17 +442,13 @@ defmodule Desktop.Deployment.Package.MacOS do
       )
       when is_binary(username) and is_binary(password) and is_binary(team_uid) do
     cmd!("xcrun", [
-      "altool",
-      "--notarize-app",
-      "--primary-bundle-id",
-      identifier <> ".dmg",
-      "--username",
+      "notarytool",
+      "--apple-id",
       username,
       "--password",
       password,
-      "--team",
+      "--team-id",
       team_uid,
-      "--file",
       file
     ])
   end
