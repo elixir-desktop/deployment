@@ -196,7 +196,7 @@ defmodule Desktop.Deployment.Package do
     File.write!(Path.join(build_root, "app.nsi"), content)
     cmd!("makensis", ["-NOCD", "-DVERSION=#{vsn}", Path.join(build_root, "app.nsi")])
     :file.set_cwd(cur)
-    outfile = "#{pkg.name}-#{vsn}-win32.exe"
+    outfile = "#{pkg.name}-#{vsn}.exe"
 
     if signfun != nil do
       path = Path.join([build_root, outfile])

@@ -8,7 +8,7 @@ Var STARTMENU_FOLDER
 Var MYTEMP
 
 ; General
-OutFile "../../<%= @package.name %>-${VERSION}-win32.exe"
+OutFile "../../<%= @package.name %>-${VERSION}.exe"
 SetCompressor /SOLID lzma
 SetCompressorDictSize 64
 SetDatablockOptimize ON
