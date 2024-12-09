@@ -26,8 +26,7 @@ defmodule Desktop.Deployment.Package do
             priv: %{}
 
   def copy_extra_files(%Package{release: %Mix.Release{path: rel_path, version: vsn} = rel} = pkg) do
-    base = Mix.Project.deps_paths()[:desktop_deployment]
-    vm_args = Path.absname("#{base}/rel/vm.args.eex")
+    vm_args = toolpath("rel/vm.args.eex")
     content = eval_eex(vm_args, rel, pkg)
     vm_args_out = Path.join([rel_path, "releases", vsn, "vm.args"])
     File.write!(vm_args_out, content)
@@ -50,9 +49,7 @@ defmodule Desktop.Deployment.Package do
     priv_import!(pkg, "icon.ico", strip: false)
 
     icon = Path.join(priv(pkg), "icon.ico")
-    base = Mix.Project.deps_paths()[:desktop_deployment]
-    windows_tools = Path.absname("#{base}/rel/win32")
-    content = eval_eex(Path.join(windows_tools, "app.exe.manifest.eex"), rel, pkg)
+    content = eval_eex(toolpath("rel/win32/app.exe.manifest.eex"), rel, pkg)
     build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
     File.write!(Path.join(build_root, "app.exe.manifest"), content)
 
@@ -84,7 +81,7 @@ defmodule Desktop.Deployment.Package do
     for bin <- [new_name, beam, erlexec] do
       # Unsafe binary removal of "Erlang", needs same length!
       file_replace(bin, "Erlang", binary_part(pkg.name <> <<0, 0, 0, 0, 0, 0>>, 0, 6))
-      cmd!(Path.join(windows_tools, "rcedit.exe"), ["/I", bin, icon])
+      cmd!(toolpath("rel/win32/rcedit.exe"), ["/I", bin, icon])
 
       :ok =
         Mix.Tasks.Pe.Update.run(
@@ -124,8 +121,8 @@ defmodule Desktop.Deployment.Package do
       File.rename!(name, new_name)
     end)
 
-    cp!(Path.join(windows_tools, "run.vbs"), rel_path)
-    content = eval_eex(Path.join(windows_tools, "run.bat.eex"), rel, pkg)
+    cp!(toolpath("rel/win32/run.vbs"), rel_path)
+    content = eval_eex(toolpath("rel/win32/run.bat.eex"), rel, pkg)
     File.write!(Path.join(rel_path, "run.bat"), content)
 
     pkg
@@ -171,9 +168,6 @@ defmodule Desktop.Deployment.Package do
 
   defp windows_release(%Package{release: %Mix.Release{path: rel_path, version: vsn} = rel} = pkg) do
     build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
-    base = Mix.Project.deps_paths()[:desktop_deployment]
-    windows_tools = Path.absname("#{base}/rel/win32")
-
     signfun = win32_sign_function(pkg)
 
     if signfun == nil do
@@ -182,13 +176,7 @@ defmodule Desktop.Deployment.Package do
       win32_codesign(signfun, build_root)
     end
 
-    nsi_file =
-      if File.exists?("rel/win32/app.nsi.eex") do
-        Path.absname("rel/win32/app.nsi.eex")
-      else
-        Path.join(windows_tools, "app.nsi.eex")
-      end
-
+    nsi_file = toolpath("rel/win32/app.nsi.eex")
     {:ok, cur} = :file.get_cwd()
     :file.set_cwd(String.to_charlist(rel_path))
 
@@ -207,19 +195,17 @@ defmodule Desktop.Deployment.Package do
   end
 
   defp linux_release(%Package{release: %Mix.Release{path: rel_path, version: vsn} = rel} = pkg) do
-    base = Mix.Project.deps_paths()[:desktop_deployment]
-    linux_tools = Path.absname("#{base}/rel/linux")
     build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
     arch = arch()
     out_file = Path.join(build_root, "#{pkg.name}-#{vsn}-linux-#{arch}.run")
 
     File.rm(out_file)
 
-    content = eval_eex(Path.join(linux_tools, "install.eex"), rel, pkg)
+    content = eval_eex(toolpath("rel/linux/install.eex"), rel, pkg)
     File.write!(Path.join(rel_path, "install"), content)
     File.chmod!(Path.join(rel_path, "install"), 0o755)
 
-    run_content = eval_eex(Path.join(linux_tools, "run.eex"), rel, pkg)
+    run_content = eval_eex(toolpath("rel/linux/run.eex"), rel, pkg)
     File.write!(Path.join(rel_path, pkg.name), run_content)
     File.chmod!(Path.join(rel_path, pkg.name), 0o755)
 
@@ -228,7 +214,7 @@ defmodule Desktop.Deployment.Package do
 
     :file.set_cwd(String.to_charlist(rel_path))
 
-    cmd!(Path.join(linux_tools, "makeself.sh"), [
+    cmd!(toolpath("rel/linux/makeself.sh"), [
       "--xz",
       "--threads",
       "0",
@@ -341,5 +327,20 @@ defmodule Desktop.Deployment.Package do
         "#{filename}.tmp"
       ]
     )
+  end
+
+  def toolpath(name) do
+    if File.exists?(name) do
+      Path.absname(name)
+    else
+      base = Mix.Project.deps_paths()[:desktop_deployment]
+      path = Path.absname(Path.join(base, name))
+
+      if not File.exists?(path) do
+        raise "Tool #{name} not found"
+      end
+
+      path
+    end
   end
 end

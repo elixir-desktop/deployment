@@ -17,10 +17,6 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   def release(%Package{release: %Mix.Release{path: path} = rel} = pkg) do
-    base = Mix.Project.deps_paths()[:desktop_deployment]
-    linux_tools = Path.absname("#{base}/rel/linux")
-    mac_tools = Path.absname("#{base}/rel/macosx")
-
     build_root = Path.join([path, "..", ".."]) |> Path.expand()
     root = Path.join(build_root, "#{pkg.name}.app")
     # Remove crust
@@ -31,7 +27,7 @@ defmodule Desktop.Deployment.Package.MacOS do
 
     File.mkdir_p!(bindir)
 
-    content = eval_eex(Path.join(mac_tools, "InfoPlist.strings.eex"), rel, pkg)
+    content = eval_eex(Package.toolpath("rel/macosx/InfoPlist.strings.eex"), rel, pkg)
     utf8bom = :unicode.encoding_to_bom(:utf8)
 
     for lang <- ["en", "Base"] do
@@ -40,10 +36,10 @@ defmodule Desktop.Deployment.Package.MacOS do
       File.write!(Path.join(langdir, "InfoPlist.strings"), utf8bom <> content)
     end
 
-    content = eval_eex(Path.join(mac_tools, "Info.plist.eex"), rel, pkg)
+    content = eval_eex(Package.toolpath("rel/macosx/Info.plist.eex"), rel, pkg)
     File.write!(Path.join(contents, "Info.plist"), content)
     File.write!(Path.join(contents, "PkgInfo"), "APPL????")
-    content_run = eval_eex(Path.join(linux_tools, "run.eex"), rel, pkg)
+    content_run = eval_eex(Package.toolpath("rel/linux/run.eex"), rel, pkg)
     File.write!(Path.join(bindir, "run"), content_run)
     File.chmod!(Path.join(bindir, "run"), 0o755)
 
@@ -55,7 +51,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     end)
 
     # Creating/copying the icon
-    icon_path = Path.join(mac_tools, "icons.icns")
+    icon_path = Path.absname("rel/macosx/icons.icns")
 
     if not File.exists?(icon_path) do
       iconset = Path.join(build_root, "icons.iconset")
@@ -70,7 +66,7 @@ defmodule Desktop.Deployment.Package.MacOS do
 
       outfile = Path.join(iconset, "icon_512x512@2x.png")
       cmd!("sips", ["-z", 1024, 1024, pkg.icon, "--out", outfile])
-      cmd!("iconutil", ["-c", "icns", iconset, "-o", Path.join(mac_tools, "icons.icns")])
+      cmd!("iconutil", ["-c", "icns", iconset, "-o", icon_path])
     end
 
     cp!(icon_path, resources)
@@ -112,8 +108,6 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   defp make_dmg(%Package{release: %Mix.Release{path: path, version: vsn}} = pkg) do
-    base = Mix.Project.deps_paths()[:desktop_deployment]
-    mac_tools = Path.absname("#{base}/rel/macosx")
     build_root = Path.join([path, "..", ".."]) |> Path.expand()
     app_root = Path.join(build_root, "#{pkg.name}.app")
     out_file = Path.join(build_root, "#{pkg.name}-#{vsn}.dmg")
@@ -147,7 +141,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     # Adding styling
     background_dir = Path.join(volume, ".background")
     File.mkdir(background_dir)
-    cp!(Path.join(mac_tools, "background.png"), background_dir)
+    cp!(Package.toolpath("rel/macosx/background.png"), background_dir)
 
     # Future: auto generate proper installer icon
     # https://0day.work/parsing-the-ds_store-file-format/
@@ -186,9 +180,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     File.rename!(cef, Path.join(frameworks, "Chromium Embedded Framework.framework"))
 
     # Collecting plist content
-    base = Mix.Project.deps_paths()[:desktop_deployment]
-    mac_tools = Path.absname("#{base}/rel/macosx")
-    filename = Path.join(mac_tools, "Info.plist.helper.eex")
+    filename = Package.toolpath("rel/macosx/Info.plist.helper.eex")
     app_name = pkg.priv.executable_name
     helper_name = "#{app_name} Helper"
     executable_name = "#{app_name} Helper"
@@ -221,7 +213,7 @@ defmodule Desktop.Deployment.Package.MacOS do
 
     File.rename!(webview, Path.join(helper_contents, "MacOS/#{executable_name}"))
 
-    icon_path = Path.join(mac_tools, "icons.icns")
+    icon_path = Package.toolpath("rel/macosx/icons.icns")
     File.cp!(icon_path, Path.join(helper_contents, "Resources/icons.icns"))
 
     for name <- ~w(Alerts GPU Plugin Renderer) do
@@ -492,11 +484,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     # Codesign all executable code in the package with timestamp and
     # hardened runtime. This is a prerequisite for notarization.
     to_sign = find_binaries(root)
-
-    base = Mix.Project.deps_paths()[:desktop_deployment]
-    mac_tools = Path.absname("#{base}/rel/macosx")
-    entitlements = Path.join(mac_tools, "app.entitlements")
-
+    entitlements = Package.toolpath("rel/macosx/app.entitlements")
     File.write!("codesign.log", Enum.join(to_sign, "\n"))
 
     # If there are any Frameworks embedded we have to sign them first

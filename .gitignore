@@ -1,6 +1,7 @@
 /tmp
 tmp.pem
 .DS_Store
+icons.icns
 # The directory Mix will write compiled artifacts to.
 /_build/
 

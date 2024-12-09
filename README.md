@@ -123,19 +123,10 @@ sudo apt install libssl-dev libjpeg-dev libpng-dev libtiff-dev zlib1g-dev libncu
 **Install wxWidgets 3.1.5:**
 ```
 mkdir ~/projects && cd ~/projects
-git clone https://github.com/wxWidgets/wxWidgets.git
-cd wxWidgets; 
-git checkout v3.1.5
-./configure --prefix=/usr/local/wxWidgets --enable-clipboard --enable-controls \
-      --enable-dataviewctrl --enable-display \
-      --enable-dnd --enable-graphics_ctx \
-      --enable-std_string --enable-svg \
-      --enable-unicode --enable-webview \
-      --with-expat --with-libjpeg \
-      --with-libpng --with-libtiff \
-      --with-opengl --with-zlib \
-      --disable-precomp-headers --disable-monolithic
-
+git clone https://github.com/dominicletz/wxWidgets.git
+cd wxWidgets
+git submodule update --init
+./configure --enable-compat30
 make -j4
 ```
 
@@ -180,9 +171,13 @@ export PATH=/usr/local/opt/binutils/bin:$PATH
 WxWidgets with recent macOS fixes
 
 ```
-brew tap dominicletz/homebrew-extra
-brew install dominicletz/extra/wxmac@3.1.5 --HEAD
-brew link dominicletz/extra/wxmac@3.1.5
+mkdir -p ~/projects/
+cd ~/projects/
+git clone https://github.com/dominicletz/wxWidgets.git
+cd wxWidgets
+git submodule update --init
+./configure --enable-compat30
+make -j4
 ```
 
 **Build with kerl**
