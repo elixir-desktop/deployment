@@ -72,6 +72,20 @@ defmodule Desktop.Deployment.Package.MacOS do
     cp!(icon_path, resources)
     maybe_import_webview(pkg, contents)
 
+    # Maybe embedding Info.plist into the beam.smp
+    with [beam_smp] <- wildcard(root, "**/*.smp") do
+      oldbin = File.read!(beam_smp)
+      with [match] <- Regex.run(~r/<\!--PLIST_TEMPLATE_START_64f5fc2af15ab6092d25ede0fdc039e0789aa6e9.+PLIST_TEMPLATE_END_64f5fc2af15ab6092d25ede0fdc039e0789aa6e9-->/s, oldbin) do
+        size = byte_size(match)
+        [_all, replacement] = Regex.run(~r/<plist[^>]*>(.+)<\/plist>/s, content)
+        replacement = String.pad_trailing(replacement, size, " ")
+        bin = String.replace(oldbin, match, replacement)
+        IO.puts("Embedding Info.plist into beam.smp[#{byte_size(oldbin)} -> #{byte_size(bin)}]")
+        File.write!(beam_smp, bin)
+        cmd!("codesign", ["-s", "-", beam_smp])
+      end
+    end
+
     for bin <- find_binaries(root) do
       rewrite_deps(bin, fn dep ->
         if should_rewrite?(bin, dep) do
