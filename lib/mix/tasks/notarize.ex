@@ -27,7 +27,7 @@ defmodule Mix.Tasks.Desktop.Notarize do
   defp do_notarize(creds, file) do
     hash = :crypto.hash(:sha256, file) |> Base.encode16(case: :lower)
 
-    {_ret, status} =
+    {ret, status} =
       cmd("xcrun", [
         "notarytool",
         "submit",
@@ -41,7 +41,7 @@ defmodule Mix.Tasks.Desktop.Notarize do
       ])
 
     if status == 0 do
-      [_, id] = Regex.run(~r/id: ([-0-9a-f]+)/s, status)
+      [_, id] = Regex.run(~r/id: ([-0-9a-f]+)/s, ret)
       log("#{hash} uploaded id=#{id} file='#{file}'")
       await_notarization(creds, file, id)
     else
