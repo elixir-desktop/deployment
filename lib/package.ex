@@ -23,7 +23,8 @@ defmodule Desktop.Deployment.Package do
             # defined during the process
             app_name: nil,
             release: nil,
-            priv: %{}
+            priv: %{},
+            schemes: []
 
   def copy_extra_files(%Package{release: %Mix.Release{path: rel_path, version: vsn} = rel} = pkg) do
     vm_args = toolpath("rel/vm.args.eex")

@@ -88,15 +88,17 @@ WriteRegStr HKCU "${MY_STARTMENUPAGE_REGISTRY_KEY}" "" $INSTDIR
 ;WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "<%= @package.name %>" "${TARGET}"
 
 ; Register for mimetype
-;WriteRegStr HKCR \
-;    "app" \
-;    "" "URL:app Protocol"
-;WriteRegStr HKCR \
-;    "app" \
-;    "URL Protocol" ""
-;WriteRegStr HKCR \
-;    "app\shell\open\command" \
-;    "" '"$WINDIR\system32\wscript.exe" "${TARGET}" "%1"'
+<%= for scheme in @package.schemes do %>
+WriteRegStr HKCR \
+    "<%= scheme %>" \
+    "" "URL:<%= scheme %> Protocol"
+WriteRegStr HKCR \
+    "<%= scheme %>" \
+    "URL Protocol" ""
+WriteRegStr HKCR \
+    "<%= scheme %>\shell\open\command" \
+    "" '"$WINDIR\system32\wscript.exe" "${TARGET}" "%1"'
+<% end %>
 
 ; Create uninstaller before shortcuts
 WriteUninstaller "$INSTDIR\Uninstall.exe"
