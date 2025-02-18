@@ -28,7 +28,7 @@ GenericName[en]=<%= @package.description %>
 Comment[en]=<%= @package.description_long %>
 Icon=%ROOTDIR%/lib/<%= @package.app_name %>-<%= @release.version %>/<%= @package.icon %>
 Categories=<%= @package.category_gnome %>
-<%= for scheme in @package.schemes do %>
+<%= for scheme <- @package.schemes do %>
 MimeType=x-scheme-handler/<%= scheme %>;
 <% end %>
 EOF

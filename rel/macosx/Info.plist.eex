@@ -31,7 +31,7 @@
 			<string><%= @package.name %> Protocol</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<%= for scheme in @package.schemes do %>
+				<%= for scheme <- @package.schemes do %>
 					<string><%= scheme %></string>
 				<% end %>
 			</array>

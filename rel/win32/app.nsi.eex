@@ -88,7 +88,7 @@ WriteRegStr HKCU "${MY_STARTMENUPAGE_REGISTRY_KEY}" "" $INSTDIR
 ;WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "<%= @package.name %>" "${TARGET}"
 
 ; Register for mimetype
-<%= for scheme in @package.schemes do %>
+<%= for scheme <- @package.schemes do %>
 WriteRegStr HKCR \
     "<%= scheme %>" \
     "" "URL:<%= scheme %> Protocol"
