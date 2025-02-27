@@ -66,6 +66,7 @@ defmodule Desktop.Deployment.Package.MacOS do
 
       outfile = Path.join(iconset, "icon_512x512@2x.png")
       cmd!("sips", ["-z", 1024, 1024, pkg.icon, "--out", outfile])
+      File.mkdir_p!(Path.dirname(icon_path))
       cmd!("iconutil", ["-c", "icns", iconset, "-o", icon_path])
     end
 
