@@ -6,16 +6,19 @@ defmodule Desktop.Deployment do
   def package(rel \\ nil) do
     config = Mix.Project.config()
 
-    case config[:package] do
-      nil ->
+    cond do
+      config[:package] != nil ->
+        struct!(default_package(rel), config[:package])
+
+      config[:desktop_package] != nil ->
+        struct!(default_package(rel), config[:desktop_package])
+
+      true ->
         Logger.warning(
           "There is no package config defined. Using the generic Elixir App descriptions."
         )
 
         default_package(rel)
-
-      map ->
-        struct!(default_package(rel), map)
     end
   end
 
