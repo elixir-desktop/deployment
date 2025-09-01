@@ -46,6 +46,7 @@ defmodule Mix.Tasks.Desktop.Notarize do
       await_notarization(creds, file, id)
     else
       log("#{hash} failed=#{status} file='#{file}'")
+      System.halt(1)
     end
   end
 
