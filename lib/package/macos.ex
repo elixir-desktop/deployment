@@ -107,6 +107,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     end
 
     dmg = make_dmg(pkg)
+    make_pkg(pkg, developer_id)
 
     if developer_id != nil do
       package_sign(developer_id, dmg)
@@ -125,6 +126,15 @@ defmodule Desktop.Deployment.Package.MacOS do
         dmg
       ]
     )
+  end
+
+  defp make_pkg(%Package{release: %Mix.Release{path: path, version: vsn}} = pkg, developer_id) do
+    build_root = Path.join([path, "..", ".."]) |> Path.expand()
+    app_root = Path.join(build_root, "#{pkg.name}.app")
+    out_file = Path.join(build_root, "#{pkg.name}-#{vsn}.pkg")
+    args = ["--component", app_root, "/Applications"]
+    args = if developer_id != nil, do: ["--sign", developer_id] ++ args, else: args
+    cmd!("productbuild", args ++ [out_file])
   end
 
   defp make_dmg(%Package{release: %Mix.Release{path: path, version: vsn}} = pkg) do
