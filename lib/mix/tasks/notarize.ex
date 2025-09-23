@@ -3,6 +3,7 @@ defmodule Mix.Tasks.Desktop.Notarize do
   @moduledoc false
 
   defmodule Credentials do
+    @moduledoc false
     defstruct apple_id: nil, password: nil, team_id: nil
   end
 
