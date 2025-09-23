@@ -77,25 +77,25 @@ To support windows code signing the user has to create two certificate files `ap
 
 ### MacOS -> DMG
 
-The builds are all done on an x86_64 apple machine and we're enabling rosetta explicitly in the `.plist` file for M1 machines.
+MacOS has two variants ARM (M1,2,3...) and legacy x86 if you want to enable your builds on both platforms the easiest way is to have the CI (e.g. GitHub) have the build done on a x86_64 machine. Then the rosetta compatibility layer will make it runnable on ARM too. For this rosetta is enabled explicitly in the `.plist` file for ARM machines.
 
-To run either you will need a macos development account. There are two environment variables this depends on `DEVELOPER_ID` which is set by `build_macos.sh` automatically using the default. `AC_PASSWORD` which is the API key for your account
+Code signing is done as part of the `desktop.installer` task if and only if a developer_id is provided. This can be provided through one of these environment variables:
 
-1) `build_macos.sh`
-2) `notarize_macos.sh`
+- `MACOS_DEVELOPER_ID` - String of the user uid
+- `MACOS_PEM` - PEM file with both user uid and user certificate for signing
+
+In addition the keychain to be used can be specified using:
+- `MACOS_KEYCHAIN` - Name/path of the keychain defaults to the result of `security login-keychain`
+
+
+1) `mix desktop.installer`
+2) `mix desktop.notarize <username@apple_account.com> <app_specific_password> <team_id> _build/prod/*.dmg`
 
 #### Known Issues / Comments
 
 * Background images for the deployment window of the `.dmg` (when clicking that on macos) are hardcoded in the rel/macosx/ subdirectory. I've not yet discovered how to properly (dynamically) create them. Also haven't found out how to set the DMGs icon to be non-standard as some apps do.
 
-* The DMG should be notarized in two phases but right now it's not :-(
-
-    1) Notarize the app directory (by zipping and uploading it)
-    1) Staple the ticket to the app directory and all executables
-    1) Package the app directory into the dmg, notarize the dmg
-    1) Staple the ticket to the dmg
-
-* Best to use a really recent wxWidgets on macos, such as wxWidgets (3.1.6) as e.g. taskbar icon size bug fixes are only present there.
+* Best to use the most recent wxWidgets on macos, as e.g. taskbar icon size bug fixes are only present there.
 
 ### Linux -> makeself
 

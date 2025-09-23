@@ -76,7 +76,12 @@ defmodule Desktop.Deployment.Package.MacOS do
     # Maybe embedding Info.plist into the beam.smp
     with [beam_smp] <- wildcard(root, "**/*.smp") do
       oldbin = File.read!(beam_smp)
-      with [match] <- Regex.run(~r/<\!--PLIST_TEMPLATE_START_64f5fc2af15ab6092d25ede0fdc039e0789aa6e9.+PLIST_TEMPLATE_END_64f5fc2af15ab6092d25ede0fdc039e0789aa6e9-->/s, oldbin) do
+
+      with [match] <-
+             Regex.run(
+               ~r/<\!--PLIST_TEMPLATE_START_64f5fc2af15ab6092d25ede0fdc039e0789aa6e9.+PLIST_TEMPLATE_END_64f5fc2af15ab6092d25ede0fdc039e0789aa6e9-->/s,
+               oldbin
+             ) do
         size = byte_size(match)
         [_all, replacement] = Regex.run(~r/<plist[^>]*>(.+)<\/plist>/s, content)
         replacement = String.pad_trailing(replacement, size, " ")
@@ -95,7 +100,7 @@ defmodule Desktop.Deployment.Package.MacOS do
       end)
     end
 
-    developer_id = Package.MacOS.find_developer_id()
+    developer_id = find_developer_id()
 
     if developer_id != nil do
       codesign(root)
@@ -423,45 +428,6 @@ defmodule Desktop.Deployment.Package.MacOS do
       :persistent_term.put(@keychain_key, keychain)
       keychain
     end
-  end
-
-  defmodule NtzCreds do
-    @moduledoc false
-    defstruct [:username, :password, :team_uid]
-  end
-
-  def notarize(file) do
-    notarize(Desktop.Deployment.package(), default_creds(), file)
-  end
-
-  def default_creds() do
-    %NtzCreds{
-      username: System.get_env("MACOS_NOTARIZATION_USER"),
-      password: System.get_env("MACOS_NOTARIZATION_PASSWORD"),
-      team_uid: find_developer_id()
-    }
-  end
-
-  def notarize(
-        %Package{identifier: identifier},
-        %NtzCreds{username: username, password: password, team_uid: team_uid},
-        file
-      )
-      when is_binary(username) and is_binary(password) and is_binary(team_uid) do
-    cmd!("xcrun", [
-      "altool",
-      "--notarize-app",
-      "--primary-bundle-id",
-      identifier <> ".dmg",
-      "--username",
-      username,
-      "--password",
-      password,
-      "--team",
-      team_uid,
-      "--file",
-      file
-    ])
   end
 
   defp scan({:AttributeTypeAndValue, @friendly_attribute, friendly}) do
