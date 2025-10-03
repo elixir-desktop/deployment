@@ -359,7 +359,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     cert = File.read!(pem_filename)
     # Test for missing public_key application
     # ref https://elixirforum.com/t/nerves-key-hub-mix-tasks-fail-because-of-missing-pubkey-pem-module/62821/2
-    {:ok, _started} = Application.ensure_all_started(:public_key)
+    Mix.ensure_application!(:public_key)
     cert_der = List.keyfind!(:public_key.pem_decode(cert), :Certificate, 0)
 
     :public_key.der_decode(:Certificate, elem(cert_der, 1))
