@@ -133,7 +133,14 @@ defmodule Desktop.Deployment.Package.MacOS do
     app_root = Path.join(build_root, "#{pkg.name}.app")
     out_file = Path.join(build_root, "#{pkg.name}-#{vsn}.pkg")
     args = ["--component", app_root, "/Applications"]
-    args = if developer_id != nil, do: ["--sign", developer_id] ++ args, else: args
+
+    args =
+      if developer_id != nil do
+        ["--keychain", keychain(), "--sign", developer_id] ++ args
+      else
+        args
+      end
+
     cmd!("productbuild", args ++ [out_file])
   end
 
