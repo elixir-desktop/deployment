@@ -107,7 +107,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     end
 
     dmg = make_dmg(pkg)
-    make_pkg(pkg, developer_id)
+    maybe_make_pkg(pkg)
 
     if developer_id != nil do
       package_sign(developer_id, dmg)
@@ -128,20 +128,21 @@ defmodule Desktop.Deployment.Package.MacOS do
     )
   end
 
-  defp make_pkg(%Package{release: %Mix.Release{path: path, version: vsn}} = pkg, developer_id) do
+  defp maybe_make_pkg(%Package{release: %Mix.Release{path: path, version: vsn}} = pkg) do
     build_root = Path.join([path, "..", ".."]) |> Path.expand()
     app_root = Path.join(build_root, "#{pkg.name}.app")
     out_file = Path.join(build_root, "#{pkg.name}-#{vsn}.pkg")
     args = ["--component", app_root, "/Applications"]
+    installer_id = find_installer_id()
 
     args =
-      if developer_id != nil do
-        ["--keychain", keychain(), "--sign", developer_id] ++ args
+      if installer_id != nil do
+        ["--keychain", keychain(), "--sign", installer_id] ++ args
       else
         args
       end
 
-    cmd!("productbuild", args ++ [out_file])
+    cmd("productbuild", args ++ [out_file])
   end
 
   defp make_dmg(%Package{release: %Mix.Release{path: path, version: vsn}} = pkg) do
@@ -395,6 +396,16 @@ defmodule Desktop.Deployment.Package.MacOS do
 
       true ->
         nil
+    end
+  end
+
+  def find_installer_id() do
+    cond do
+      System.get_env("MACOS_INSTALLER_ID") != nil ->
+        System.get_env("MACOS_INSTALLER_ID")
+
+      true ->
+        find_developer_id()
     end
   end
 
