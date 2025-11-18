@@ -404,12 +404,10 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   def find_installer_id() do
-    cond do
-      System.get_env("MACOS_INSTALLER_ID") != nil ->
-        System.get_env("MACOS_INSTALLER_ID")
-
-      true ->
-        find_developer_id()
+    if System.get_env("MACOS_INSTALLER_ID") != nil do
+      System.get_env("MACOS_INSTALLER_ID")
+    else
+      find_developer_id()
     end
   end
 
