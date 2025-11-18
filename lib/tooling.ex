@@ -168,7 +168,7 @@ defmodule Desktop.Deployment.Tooling do
 
     Package.MacOS.find_deps(object)
     |> Enum.filter(fn lib ->
-      (String.starts_with?(lib, "/usr/local/opt/") or String.starts_with?(lib, "/Users/")) and
+      Enum.any?(Package.MacOS.import_prefixes(), &String.starts_with?(lib, &1)) and
         not String.starts_with?(lib, cwd)
     end)
   end

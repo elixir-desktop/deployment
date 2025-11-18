@@ -312,9 +312,12 @@ defmodule Desktop.Deployment.Package.MacOS do
     |> Enum.filter(&is_binary/1)
   end
 
-  @prefixes ["/opt/homebrew/", "/usr/local/opt/", "/Users/"]
+  def import_prefixes() do
+    ["/opt/homebrew/", "/usr/local/opt/", "/Users/"]
+  end
+
   defp should_rewrite?(bin, dep) do
-    Enum.any?(@prefixes, &String.starts_with?(dep, &1)) or
+    Enum.any?(import_prefixes(), &String.starts_with?(dep, &1)) or
       (String.starts_with?(dep, "@executable_path") and
          not File.exists?(
            Path.join(
