@@ -312,8 +312,9 @@ defmodule Desktop.Deployment.Package.MacOS do
     |> Enum.filter(&is_binary/1)
   end
 
+  @prefixes ["/opt/homebrew/", "/usr/local/opt/", "/Users/"]
   defp should_rewrite?(bin, dep) do
-    String.starts_with?(dep, "/usr/local/opt/") or String.starts_with?(dep, "/Users/") or
+    Enum.any?(@prefixes, &String.starts_with?(dep, &1)) or
       (String.starts_with?(dep, "@executable_path") and
          not File.exists?(
            Path.join(
