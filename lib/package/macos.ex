@@ -352,6 +352,10 @@ defmodule Desktop.Deployment.Package.MacOS do
 
   def rewrite_dep(object, old_name, new_name) do
     cmd!("install_name_tool", ["-change", old_name, new_name, object])
+    # The install_name_tool does leave the binary with an invalid signature. Invalid signatures
+    # are not launchable, so to make it locally runnable for development (without a proper certificate)
+    # we sign it with an empty signature.
+    cmd!("codesign", ["-s", "-", object])
   end
 
   def rewrite_deps(object, fun) do
