@@ -122,6 +122,11 @@ defmodule Desktop.Deployment.Package do
       File.rename!(name, new_name)
     end)
 
+    # Removing pdb files
+    for name <- wildcard(rel, "**/*.pdb") do
+      File.rm!(name)
+    end
+
     cp!(toolpath("rel/win32/run.vbs"), rel_path)
     content = eval_eex(toolpath("rel/win32/run.bat.eex"), rel, pkg)
     File.write!(Path.join(rel_path, "run.bat"), content)
