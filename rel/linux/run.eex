@@ -150,6 +150,7 @@ case $RELEASE_COMMAND in
     fi
 
     export_release_sys_config
+    export ELIXIR_ERL_OPTIONS=${ELIXIR_ERL_OPTIONS//-heart/}
     exec "$REL_VSN_DIR/elixir" \
        --cookie "$RELEASE_COOKIE" \
        --erl-config "$RELEASE_SYS_CONFIG" \
