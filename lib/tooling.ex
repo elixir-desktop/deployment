@@ -76,11 +76,17 @@ defmodule Desktop.Deployment.Tooling do
     is_binary = extname == ""
     is_library = Regex.match?(~r/\.(so|dylib|smp)($|\.)/, extname)
 
-    cond do
-      os() == MacOS and is_library -> cmd!("strip", ["-x", "-S", file])
-      os() == MacOS and is_binary -> cmd!("strip", ["-u", "-r", file])
-      is_binary || is_library -> cmd!("strip", ["-s", file])
-      true -> :ok
+    strip_args =
+      cond do
+        os() == MacOS and is_library -> ["-x", "-S"]
+        os() == MacOS and is_binary -> ["-u", "-r"]
+        is_binary || is_library -> ["-s"]
+        true -> nil
+      end
+
+    if strip_args do
+      File.chmod!(file, Bitwise.bor(File.lstat!(file).mode, 0o200))
+      cmd!("strip", strip_args ++ [file])
     end
 
     file
