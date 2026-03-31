@@ -7,14 +7,14 @@ env:
 
 jobs:
   macos:
-    runs-on: macos-11
+    runs-on: macos-15
     steps:
     - name: asdf cache
       uses: actions/cache@v3
       id: asdf-cache
       with:
         path: /Users/runner/.asdf
-        key: macos-otp-${{ env.OTP_VERSION }}
+        key: macos-15-otp-${{ env.OTP_VERSION }}
       
     - name: "Installing Erlang"
       if: steps.asdf-cache.outputs.cache-hit != 'true'
@@ -34,7 +34,7 @@ jobs:
       uses: actions/cache/save@v3
       with:
         path: /Users/runner/.asdf
-        key: macos-otp-${{ env.OTP_VERSION }}
+        key: macos-15-otp-${{ env.OTP_VERSION }}
   
     - uses: actions/checkout@v3
     - name: "Create keychain"
