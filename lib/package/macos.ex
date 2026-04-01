@@ -93,11 +93,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     end
 
     for bin <- find_binaries(root) do
-      rewrite_deps(bin, fn dep ->
-        if should_rewrite?(bin, dep) do
-          rewrite_to_approot(pkg, bin, dep, root)
-        end
-      end)
+      rewrite_deps(bin, &maybe_rewrite_dep_to_approot(pkg, bin, &1, root))
     end
 
     developer_id = find_developer_id()
@@ -327,6 +323,10 @@ defmodule Desktop.Deployment.Package.MacOS do
          ))
   end
 
+  defp maybe_rewrite_dep_to_approot(pkg, bin, dep, root) do
+    if should_rewrite?(bin, dep), do: rewrite_to_approot(pkg, bin, dep, root)
+  end
+
   defp rewrite_to_approot(pkg, bin, dep, root) do
     location =
       if String.contains?(dep, ".framework/") do
@@ -373,9 +373,9 @@ defmodule Desktop.Deployment.Package.MacOS do
   @friendly_attribute {2, 5, 4, 3}
   def locate_uid(pem_filename) do
     cert = File.read!(pem_filename)
-    # Test for missing public_key application
+    # Ensure :public_key is started (see extra_applications in mix.exs)
     # ref https://elixirforum.com/t/nerves-key-hub-mix-tasks-fail-because-of-missing-pubkey-pem-module/62821/2
-    Mix.ensure_application!(:public_key)
+    Application.ensure_all_started(:public_key)
     cert_der = List.keyfind!(:public_key.pem_decode(cert), :Certificate, 0)
 
     :public_key.der_decode(:Certificate, elem(cert_der, 1))
