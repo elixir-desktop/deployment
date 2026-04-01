@@ -80,14 +80,7 @@ defmodule Desktop.Deployment.Package.Linux do
       files = wildcard(Path.dirname(libwebkit), "#{basename}/*")
 
       for file <- files do
-        if File.dir?(file) do
-          File.mkdir_p!(Path.join([priv(pkg), "libwebkit2gtk", Path.basename(file)]))
-
-          for subfile <- wildcard(file, "*"),
-              do: priv_import!(pkg, subfile, extra_path: ["libwebkit2gtk/#{Path.basename(file)}"])
-        else
-          priv_import!(pkg, file, extra_path: ["libwebkit2gtk"])
-        end
+        import_webkit_entry(pkg, file)
       end
 
       redirection =
@@ -96,6 +89,17 @@ defmodule Desktop.Deployment.Package.Linux do
       %Package{pkg | env: Map.put(pkg.env, "REDIRECTIONS", redirection)}
     else
       pkg
+    end
+  end
+
+  defp import_webkit_entry(%Package{} = pkg, file) do
+    if File.dir?(file) do
+      File.mkdir_p!(Path.join([priv(pkg), "libwebkit2gtk", Path.basename(file)]))
+
+      for subfile <- wildcard(file, "*"),
+          do: priv_import!(pkg, subfile, extra_path: ["libwebkit2gtk/#{Path.basename(file)}"])
+    else
+      priv_import!(pkg, file, extra_path: ["libwebkit2gtk"])
     end
   end
 
