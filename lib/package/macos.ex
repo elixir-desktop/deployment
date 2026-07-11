@@ -358,12 +358,46 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   def rewrite_dep(object, old_name, new_name) do
-    cmd!("install_name_tool", ["-change", old_name, new_name, object])
+    if cmd_status("install_name_tool", ["-change", old_name, new_name, object]) != 0 do
+      # install_name_tool can only rewrite an install path in place; it cannot
+      # grow a binary's Mach-O load commands to fit a longer path unless the
+      # binary was linked with -headerpad_max_install_names. Homebrew/kerl-built
+      # OTP binaries (e.g. crypto.so linking libcrypto) usually have no spare
+      # header room, so pointing them at the bundled copy via a long
+      # @loader_path/../../.../priv/lib.dylib fails. Fall back to placing a copy
+      # of the dependency next to the binary and using the shortest possible
+      # @loader_path/<basename>, which never exceeds the (absolute) original and
+      # therefore always fits without relinking.
+      colocate_dep(object, old_name, new_name)
+    end
+
     # The install_name_tool does leave the binary with an invalid signature. Invalid signatures
     # are not launchable, so to make it locally runnable for development (without a proper certificate)
     # we sign it with an empty signature.
     cmd!("codesign", ["-f", "-s", "-", object])
   end
+
+  defp colocate_dep(object, old_name, new_name) do
+    basename = Path.basename(new_name)
+    bundled = Path.expand(Path.join(Path.dirname(object), loader_relative(new_name)))
+    local = Path.join(Path.dirname(object), basename)
+
+    if not File.exists?(bundled) do
+      raise "Cannot relocate #{old_name} for #{object}: bundled copy not found at #{bundled}"
+    end
+
+    if bundled != local and not File.exists?(local) do
+      File.cp!(bundled, local)
+      File.chmod!(local, 0o755)
+      # Match how the rest of the tree is left: adhoc-signed so it is launchable.
+      cmd!("codesign", ["-f", "-s", "-", local])
+    end
+
+    cmd!("install_name_tool", ["-change", old_name, "@loader_path/#{basename}", object])
+  end
+
+  defp loader_relative("@loader_path/" <> rest), do: rest
+  defp loader_relative(path), do: path
 
   def rewrite_deps(object, fun) do
     find_deps(object)
