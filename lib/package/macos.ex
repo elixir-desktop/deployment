@@ -104,6 +104,8 @@ defmodule Desktop.Deployment.Package.MacOS do
 
     if developer_id != nil do
       codesign(root)
+    else
+      adhoc_sign(root)
     end
 
     dmg = make_dmg(pkg)
@@ -537,6 +539,27 @@ defmodule Desktop.Deployment.Package.MacOS do
     |> Enum.filter(fn file -> File.lstat!(file).type == :regular end)
     |> Enum.concat(frameworks)
     |> Enum.uniq()
+  end
+
+  def adhoc_sign(root) do
+    # Without a Developer ID we can't produce a distributable signature, but the
+    # bundle must still be *validly* signed to run: stripping and install-name
+    # rewriting invalidate the signatures that precompiled NIFs/dylibs ship with,
+    # and modern macOS (arm64, and Sequoia/Tahoe especially) SIGKILLs any binary
+    # whose code signature is invalid the moment it is dlopen'd. Ad-hoc sign every
+    # binary so a locally built app launches. Sign nested code before the bundle
+    # so the outer seal is valid.
+    to_sign = find_binaries(root)
+    File.write!("codesign.log", Enum.join(to_sign, "\n"))
+
+    {frameworks, rest} =
+      Enum.split_with(to_sign, fn path -> String.contains?(path, "/Frameworks/") end)
+
+    for object <- frameworks ++ rest do
+      cmd!("codesign", ["-f", "-s", "-", object])
+    end
+
+    cmd!("codesign", ["-f", "-s", "-", root])
   end
 
   def codesign(root) do
