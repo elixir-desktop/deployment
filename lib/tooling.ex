@@ -1,5 +1,6 @@
 defmodule Desktop.Deployment.Tooling do
   alias Desktop.Deployment.Package
+  require Logger
   @moduledoc false
 
   def file_replace(file, from, to) do
@@ -175,7 +176,8 @@ defmodule Desktop.Deployment.Tooling do
     Package.MacOS.find_deps(object)
     |> Enum.filter(fn lib ->
       Enum.any?(Package.MacOS.import_prefixes(), &String.starts_with?(lib, &1)) and
-        not String.starts_with?(lib, cwd)
+        not String.starts_with?(lib, cwd) and
+        existing_dep?(lib, object)
     end)
   end
 
@@ -197,6 +199,27 @@ defmodule Desktop.Deployment.Tooling do
     |> Enum.filter(fn lib ->
       is_binary(lib) and Path.basename(lib) not in linux_builtin()
     end)
+  end
+
+  # A dependency's recorded install path can point at a location that only ever
+  # existed on the machine that built the binary. Precompiled NIFs are the common
+  # case: e.g. exqlite's prebuilt artifact bakes in the CI runner path
+  # `/Users/runner/work/exqlite/...`, which matches our `/Users/` import prefix
+  # but does not exist here. Such a path can neither be inspected with `otool -L`
+  # (it fails hard and crashes the build) nor copied into the bundle, so we skip
+  # it. Anything genuinely required is resolvable next to the binary or via the
+  # linker's search paths.
+  defp existing_dep?(lib, object) do
+    if File.exists?(lib) do
+      true
+    else
+      Logger.warning(
+        "desktop_deployment: skipping dependency #{lib} of #{object} — no such file " <>
+          "on this machine (stale path baked into a precompiled binary?)"
+      )
+
+      false
+    end
   end
 
   # https://raw.githubusercontent.com/probonopd/AppImages/master/excludelist

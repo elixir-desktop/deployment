@@ -290,11 +290,18 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   def find_deps(object) do
-    # otool -L can't handle filenames such as "webview (Alerts)"
-    if String.ends_with?(object, ")") do
-      []
-    else
-      do_find_deps(object)
+    cond do
+      # otool -L can't handle filenames such as "webview (Alerts)"
+      String.ends_with?(object, ")") ->
+        []
+
+      # The recorded path may not exist on this machine (e.g. a builder path
+      # baked into a precompiled NIF). otool -L would fail hard on it.
+      not File.exists?(object) ->
+        []
+
+      true ->
+        do_find_deps(object)
     end
   end
 
