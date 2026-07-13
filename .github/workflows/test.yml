@@ -57,7 +57,8 @@ jobs:
         mix lint
         openssl genrsa -out mock.key 2048
         openssl req -new -config rel/macosx/Developer_ID_mock.conf -key mock.key -out mock.csr
-        openssl req -x509 -days 1 -key mock.key -in mock.csr -out mock.crt -copy_extensions copy
+        openssl x509 -req -days 1 -in mock.csr -signkey mock.key -out mock.crt \
+          -extfile rel/macosx/Developer_ID_mock.conf -extensions xca_extensions
         cat mock.crt mock.key > mock.pem
         export MACOS_PEM="$(cat mock.pem)"
         mix desktop.create_keychain
