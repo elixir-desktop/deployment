@@ -14,6 +14,19 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
     end
   end
 
+  def run(["ci"]) do
+    name = "macos-build.keychain"
+    pass = "actions"
+    base = Mix.Project.deps_paths()[:desktop_deployment] || ""
+    mac_tools = Path.join(base, "rel/macosx")
+    full_path = Path.join([System.get_env("HOME"), "Library/Keychains", name])
+
+    prepare_keychain(name, pass, full_path, mac_tools)
+    allow_codesign_access(name, pass)
+    System.put_env("DEVELOPER_ID", "-")
+    IO.puts(full_path)
+  end
+
   def run(_args) do
     name = "macos-build.keychain"
     pass = "actions"
