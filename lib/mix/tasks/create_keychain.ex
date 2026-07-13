@@ -45,7 +45,19 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
         is_binary(p12) and byte_size(p12) > 0 ->
           p12_password = System.get_env("MACOS_PEM_PASSWORD") || pass
           cert_file = "tmp.cert.pem"
-          {_, 0} = System.cmd("openssl", ["pkcs12", "-in", p12, "-passin", "pass:#{p12_password}", "-nokeys", "-out", cert_file])
+
+          {_, 0} =
+            System.cmd("openssl", [
+              "pkcs12",
+              "-in",
+              p12,
+              "-passin",
+              "pass:#{p12_password}",
+              "-nokeys",
+              "-out",
+              cert_file
+            ])
+
           uids = locate_uid(cert_file) || raise "Could not locate UID in PKCS12"
           maybe_import_p12(p12, p12_password, uids, pass)
 
