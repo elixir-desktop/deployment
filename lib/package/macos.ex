@@ -93,11 +93,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     end
 
     for bin <- find_binaries(root) do
-      rewrite_deps(bin, fn dep ->
-        if should_rewrite?(bin, dep) do
-          rewrite_to_approot(pkg, bin, dep, root)
-        end
-      end)
+      rewrite_deps(bin, &maybe_rewrite_dep_to_approot(pkg, bin, &1, root))
     end
 
     developer_id = find_developer_id()
@@ -336,6 +332,10 @@ defmodule Desktop.Deployment.Package.MacOS do
          ))
   end
 
+  defp maybe_rewrite_dep_to_approot(pkg, bin, dep, root) do
+    if should_rewrite?(bin, dep), do: rewrite_to_approot(pkg, bin, dep, root)
+  end
+
   defp rewrite_to_approot(pkg, bin, dep, root) do
     location =
       if String.contains?(dep, ".framework/") do
@@ -416,9 +416,9 @@ defmodule Desktop.Deployment.Package.MacOS do
   @friendly_attribute {2, 5, 4, 3}
   def locate_uid(pem_filename) do
     cert = File.read!(pem_filename)
-    # Test for missing public_key application
+    # Ensure :public_key is started (see extra_applications in mix.exs)
     # ref https://elixirforum.com/t/nerves-key-hub-mix-tasks-fail-because-of-missing-pubkey-pem-module/62821/2
-    Mix.ensure_application!(:public_key)
+    Application.ensure_all_started(:public_key)
     cert_der = List.keyfind!(:public_key.pem_decode(cert), :Certificate, 0)
 
     :public_key.der_decode(:Certificate, elem(cert_der, 1))
@@ -460,17 +460,94 @@ defmodule Desktop.Deployment.Package.MacOS do
 
   defp do_find_developer_id(uids) do
     ids = find_identity()
-    Enum.find(uids, fn uid -> String.contains?(ids, uid) end)
+
+    Enum.find(normalize_uids(uids), fn uid -> String.contains?(ids, uid) end)
   end
 
-  def maybe_import_pem(file, uids) do
-    with nil <- do_find_developer_id(uids) do
-      cmd("security", ["import", file, "-k", keychain(), "-A"])
+  defp normalize_uids(uids) do
+    uids
+    |> List.wrap()
+    |> Enum.map(&uid_to_string/1)
+    |> Enum.uniq()
+  end
 
-      with nil <- do_find_developer_id(uids) do
-        raise "Failed to import PEM for uid #{inspect(uids)}"
+  defp uid_to_string(uid) when is_binary(uid) do
+    case uid do
+      <<0x13, len, rest::binary>> when len <= byte_size(rest) ->
+        binary_part(rest, 0, len)
+
+      _ ->
+        uid
+    end
+  end
+
+  defp uid_to_string(uid) when is_list(uid), do: List.to_string(uid)
+  defp uid_to_string(uid), do: to_string(uid)
+
+  def maybe_import_p12(file, password, uids, keychain_password \\ nil) do
+    keychain_password = keychain_password || System.get_env("MACOS_KEYCHAIN_PASSWORD")
+    normalized_uids = normalize_uids(uids)
+
+    with nil <- do_find_developer_id(normalized_uids) do
+      cmd("security", [
+        "import",
+        file,
+        "-k",
+        keychain(),
+        "-P",
+        password,
+        "-A",
+        "-T",
+        "/usr/bin/codesign",
+        "-f",
+        "pkcs12"
+      ])
+
+      maybe_set_key_partition_list(keychain_password)
+
+      with nil <- do_find_developer_id(normalized_uids) do
+        ids = find_identity()
+
+        raise """
+        Failed to import PKCS12 for uid #{inspect(normalized_uids)}.
+        Available identities:
+        #{ids}
+        """
       end
     end
+  end
+
+  def maybe_import_pem(file, uids, keychain_password \\ nil) do
+    keychain_password = keychain_password || System.get_env("MACOS_KEYCHAIN_PASSWORD")
+
+    with nil <- do_find_developer_id(uids) do
+      cmd("security", ["import", file, "-k", keychain(), "-A", "-T", "/usr/bin/codesign"])
+      maybe_set_key_partition_list(keychain_password)
+
+      with nil <- do_find_developer_id(uids) do
+        ids = find_identity()
+
+        raise """
+        Failed to import PEM for uid #{inspect(uids)}.
+        Available code signing identities:
+        #{ids}
+        """
+      end
+    end
+  end
+
+  defp maybe_set_key_partition_list(nil), do: :ok
+
+  defp maybe_set_key_partition_list(password) do
+    cmd("security", [
+      "set-key-partition-list",
+      "-S",
+      "apple-tool:,apple:,codesign:",
+      "-s",
+      "-k",
+      password,
+      keychain()
+    ])
   end
 
   defp find_identity() do
@@ -518,7 +595,7 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   defp scan({:AttributeTypeAndValue, @uid_attribute, uid}) do
-    [String.trim(uid)]
+    [uid_to_string(uid) |> String.trim()]
   end
 
   defp scan([head | tail]), do: scan(head) ++ scan(tail)
