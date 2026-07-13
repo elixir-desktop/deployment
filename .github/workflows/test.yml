@@ -59,8 +59,9 @@ jobs:
         openssl req -new -config rel/macosx/Developer_ID_mock.conf -key mock.key -out mock.csr
         openssl x509 -req -days 1 -in mock.csr -signkey mock.key -out mock.crt \
           -extfile rel/macosx/Developer_ID_mock.conf -extensions xca_extensions
-        cat mock.crt mock.key > mock.pem
-        export MACOS_PEM="$(cat mock.pem)"
+        openssl pkcs12 -export -inkey mock.key -in mock.crt -out mock.p12 -passout pass:actions
+        export MACOS_P12=mock.p12
+        export MACOS_PEM_PASSWORD=actions
         mix desktop.create_keychain
         export MACOS_KEYCHAIN=$HOME/Library/Keychains/macos-build.keychain
         mix test test/codesign_test.exs

@@ -20,7 +20,6 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
     base = Mix.Project.deps_paths()[:desktop_deployment] || ""
     mac_tools = Path.join(base, "rel/macosx")
     full_path = Path.join([System.get_env("HOME"), "Library/Keychains", name])
-    pem = System.get_env("MACOS_PEM") || raise "No MACOS_PEM env var"
 
     if File.exists?(full_path) or File.exists?(full_path <> "-db") do
       security(["delete-keychain", name])
@@ -38,10 +37,29 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
       security(["import", cert, "-k", name, "-A"])
     end
 
-    file = "tmp.pem"
-    File.write!(file, pem)
-    uids = locate_uid(file) || raise "Could not locate UID in PEM"
-    maybe_import_pem(file, uids, pass)
+    p12 = System.get_env("MACOS_P12")
+    pem = System.get_env("MACOS_PEM")
+
+    uid =
+      cond do
+        is_binary(p12) and byte_size(p12) > 0 ->
+          p12_password = System.get_env("MACOS_PEM_PASSWORD") || pass
+          cert_file = "tmp.cert.pem"
+          {_, 0} = System.cmd("openssl", ["pkcs12", "-in", p12, "-passin", "pass:#{p12_password}", "-nokeys", "-out", cert_file])
+          uids = locate_uid(cert_file) || raise "Could not locate UID in PKCS12"
+          maybe_import_p12(p12, p12_password, uids, pass)
+
+        is_binary(pem) and byte_size(pem) > 0 ->
+          file = "tmp.pem"
+          File.write!(file, pem)
+          uids = locate_uid(file) || raise "Could not locate UID in PEM"
+          maybe_import_pem(file, uids, pass)
+
+        true ->
+          raise "No MACOS_P12 or MACOS_PEM env var"
+      end
+
+    if is_binary(uid), do: System.put_env("DEVELOPER_ID", uid)
 
     # https://stackoverflow.com/questions/39868578/security-codesign-in-sierra-keychain-ignores-access-control-settings-and-ui-p
     # https://github.com/lando/code-sign-action/blob/main/action.yml

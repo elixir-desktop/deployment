@@ -471,9 +471,51 @@ defmodule Desktop.Deployment.Package.MacOS do
     |> Enum.uniq()
   end
 
-  defp uid_to_string(uid) when is_binary(uid), do: uid
+  defp uid_to_string(uid) when is_binary(uid) do
+    case uid do
+      <<0x13, len, rest::binary>> when len <= byte_size(rest) ->
+        binary_part(rest, 0, len)
+
+      _ ->
+        uid
+    end
+  end
+
   defp uid_to_string(uid) when is_list(uid), do: List.to_string(uid)
   defp uid_to_string(uid), do: to_string(uid)
+
+  def maybe_import_p12(file, password, uids, keychain_password \\ nil) do
+    keychain_password = keychain_password || System.get_env("MACOS_KEYCHAIN_PASSWORD")
+    normalized_uids = normalize_uids(uids)
+
+    with nil <- do_find_developer_id(normalized_uids) do
+      cmd("security", [
+        "import",
+        file,
+        "-k",
+        keychain(),
+        "-P",
+        password,
+        "-A",
+        "-T",
+        "/usr/bin/codesign",
+        "-f",
+        "pkcs12"
+      ])
+
+      maybe_set_key_partition_list(keychain_password)
+
+      with nil <- do_find_developer_id(normalized_uids) do
+        ids = find_identity()
+
+        raise """
+        Failed to import PKCS12 for uid #{inspect(normalized_uids)}.
+        Available identities:
+        #{ids}
+        """
+      end
+    end
+  end
 
   def maybe_import_pem(file, uids, keychain_password \\ nil) do
     keychain_password = keychain_password || System.get_env("MACOS_KEYCHAIN_PASSWORD")
