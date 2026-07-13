@@ -57,4 +57,5 @@ jobs:
         mix lint
         mix desktop.create_keychain ci
         export MACOS_KEYCHAIN=$HOME/Library/Keychains/macos-build.keychain
+        export DEVELOPER_ID=-
         mix test test/codesign_test.exs
