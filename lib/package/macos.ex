@@ -460,8 +460,20 @@ defmodule Desktop.Deployment.Package.MacOS do
 
   defp do_find_developer_id(uids) do
     ids = find_identity()
-    Enum.find(uids, fn uid -> String.contains?(ids, uid) end)
+
+    Enum.find(normalize_uids(uids), fn uid -> String.contains?(ids, uid) end)
   end
+
+  defp normalize_uids(uids) do
+    uids
+    |> List.wrap()
+    |> Enum.map(&uid_to_string/1)
+    |> Enum.uniq()
+  end
+
+  defp uid_to_string(uid) when is_binary(uid), do: uid
+  defp uid_to_string(uid) when is_list(uid), do: List.to_string(uid)
+  defp uid_to_string(uid), do: to_string(uid)
 
   def maybe_import_pem(file, uids, keychain_password \\ nil) do
     keychain_password = keychain_password || System.get_env("MACOS_KEYCHAIN_PASSWORD")
@@ -497,7 +509,7 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   defp find_identity() do
-    cmd("security", ["find-identity", "-v", "-p", "codesigning", keychain()])
+    cmd("security", ["find-identity", "-v", keychain()])
   end
 
   @keychain_key {__MODULE__, :keychain}
@@ -541,7 +553,7 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   defp scan({:AttributeTypeAndValue, @uid_attribute, uid}) do
-    [String.trim(uid)]
+    [uid_to_string(uid) |> String.trim()]
   end
 
   defp scan([head | tail]), do: scan(head) ++ scan(tail)
