@@ -104,6 +104,8 @@ defmodule Desktop.Deployment.Package.MacOS do
 
     if developer_id != nil do
       codesign(root)
+    else
+      adhoc_sign(root)
     end
 
     dmg = make_dmg(pkg)
@@ -290,11 +292,18 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   def find_deps(object) do
-    # otool -L can't handle filenames such as "webview (Alerts)"
-    if String.ends_with?(object, ")") do
-      []
-    else
-      do_find_deps(object)
+    cond do
+      # otool -L can't handle filenames such as "webview (Alerts)"
+      String.ends_with?(object, ")") ->
+        []
+
+      # The recorded path may not exist on this machine (e.g. a builder path
+      # baked into a precompiled NIF). otool -L would fail hard on it.
+      not File.exists?(object) ->
+        []
+
+      true ->
+        do_find_deps(object)
     end
   end
 
@@ -351,12 +360,46 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   def rewrite_dep(object, old_name, new_name) do
-    cmd!("install_name_tool", ["-change", old_name, new_name, object])
+    if cmd_status("install_name_tool", ["-change", old_name, new_name, object]) != 0 do
+      # install_name_tool can only rewrite an install path in place; it cannot
+      # grow a binary's Mach-O load commands to fit a longer path unless the
+      # binary was linked with -headerpad_max_install_names. Homebrew/kerl-built
+      # OTP binaries (e.g. crypto.so linking libcrypto) usually have no spare
+      # header room, so pointing them at the bundled copy via a long
+      # @loader_path/../../.../priv/lib.dylib fails. Fall back to placing a copy
+      # of the dependency next to the binary and using the shortest possible
+      # @loader_path/<basename>, which never exceeds the (absolute) original and
+      # therefore always fits without relinking.
+      colocate_dep(object, old_name, new_name)
+    end
+
     # The install_name_tool does leave the binary with an invalid signature. Invalid signatures
     # are not launchable, so to make it locally runnable for development (without a proper certificate)
     # we sign it with an empty signature.
     cmd!("codesign", ["-f", "-s", "-", object])
   end
+
+  defp colocate_dep(object, old_name, new_name) do
+    basename = Path.basename(new_name)
+    bundled = Path.expand(Path.join(Path.dirname(object), loader_relative(new_name)))
+    local = Path.join(Path.dirname(object), basename)
+
+    if not File.exists?(bundled) do
+      raise "Cannot relocate #{old_name} for #{object}: bundled copy not found at #{bundled}"
+    end
+
+    if bundled != local and not File.exists?(local) do
+      File.cp!(bundled, local)
+      File.chmod!(local, 0o755)
+      # Match how the rest of the tree is left: adhoc-signed so it is launchable.
+      cmd!("codesign", ["-f", "-s", "-", local])
+    end
+
+    cmd!("install_name_tool", ["-change", old_name, "@loader_path/#{basename}", object])
+  end
+
+  defp loader_relative("@loader_path/" <> rest), do: rest
+  defp loader_relative(path), do: path
 
   def rewrite_deps(object, fun) do
     find_deps(object)
@@ -496,6 +539,27 @@ defmodule Desktop.Deployment.Package.MacOS do
     |> Enum.filter(fn file -> File.lstat!(file).type == :regular end)
     |> Enum.concat(frameworks)
     |> Enum.uniq()
+  end
+
+  def adhoc_sign(root) do
+    # Without a Developer ID we can't produce a distributable signature, but the
+    # bundle must still be *validly* signed to run: stripping and install-name
+    # rewriting invalidate the signatures that precompiled NIFs/dylibs ship with,
+    # and modern macOS (arm64, and Sequoia/Tahoe especially) SIGKILLs any binary
+    # whose code signature is invalid the moment it is dlopen'd. Ad-hoc sign every
+    # binary so a locally built app launches. Sign nested code before the bundle
+    # so the outer seal is valid.
+    to_sign = find_binaries(root)
+    File.write!("codesign.log", Enum.join(to_sign, "\n"))
+
+    {frameworks, rest} =
+      Enum.split_with(to_sign, fn path -> String.contains?(path, "/Frameworks/") end)
+
+    for object <- frameworks ++ rest do
+      cmd!("codesign", ["-f", "-s", "-", object])
+    end
+
+    cmd!("codesign", ["-f", "-s", "-", root])
   end
 
   def codesign(root) do

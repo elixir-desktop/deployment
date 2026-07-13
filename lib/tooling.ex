@@ -1,5 +1,6 @@
 defmodule Desktop.Deployment.Tooling do
   alias Desktop.Deployment.Package
+  require Logger
   @moduledoc false
 
   def file_replace(file, from, to) do
@@ -175,7 +176,8 @@ defmodule Desktop.Deployment.Tooling do
     Package.MacOS.find_deps(object)
     |> Enum.filter(fn lib ->
       Enum.any?(Package.MacOS.import_prefixes(), &String.starts_with?(lib, &1)) and
-        not String.starts_with?(lib, cwd)
+        not String.starts_with?(lib, cwd) and
+        existing_dep?(lib, object)
     end)
   end
 
@@ -199,6 +201,27 @@ defmodule Desktop.Deployment.Tooling do
     end)
   end
 
+  # A dependency's recorded install path can point at a location that only ever
+  # existed on the machine that built the binary. Precompiled NIFs are the common
+  # case: e.g. exqlite's prebuilt artifact bakes in the CI runner path
+  # `/Users/runner/work/exqlite/...`, which matches our `/Users/` import prefix
+  # but does not exist here. Such a path can neither be inspected with `otool -L`
+  # (it fails hard and crashes the build) nor copied into the bundle, so we skip
+  # it. Anything genuinely required is resolvable next to the binary or via the
+  # linker's search paths.
+  defp existing_dep?(lib, object) do
+    if File.exists?(lib) do
+      true
+    else
+      Logger.warning(
+        "desktop_deployment: skipping dependency #{lib} of #{object} — no such file " <>
+          "on this machine (stale path baked into a precompiled binary?)"
+      )
+
+      false
+    end
+  end
+
   # https://raw.githubusercontent.com/probonopd/AppImages/master/excludelist
   @excludelist File.read!("priv/AppImages/excludelist")
                |> String.split("\n")
@@ -214,13 +237,37 @@ defmodule Desktop.Deployment.Tooling do
     @excludelist
   end
 
-  def download_file(filename, url) do
+  def download_file(filename, url, attempts \\ 3) do
     Mix.Shell.IO.info("Downloading #{filename} from #{url}")
     {:ok, _} = Application.ensure_all_started(:httpoison)
 
-    %HTTPoison.Response{body: body, status_code: 200} =
-      HTTPoison.get!(url, [], follow_redirect: true)
+    # These downloads (e.g. the Windows WebView2/vcredist redistributables) are
+    # large and the endpoints occasionally stall on CI. Use a generous receive
+    # timeout and retry on any failure so a transient network hiccup doesn't
+    # fail an otherwise-good installer build.
+    opts = [follow_redirect: true, timeout: 30_000, recv_timeout: 180_000]
 
-    File.write!(filename, body)
+    case HTTPoison.get(url, [], opts) do
+      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+        File.write!(filename, body)
+
+      other when attempts > 1 ->
+        Mix.Shell.IO.info(
+          "Download of #{filename} failed (#{inspect(elem_or(other))}); retrying (#{attempts - 1} left)"
+        )
+
+        Process.sleep(3_000)
+        download_file(filename, url, attempts - 1)
+
+      {:ok, %HTTPoison.Response{status_code: code}} ->
+        raise "Failed to download #{filename} from #{url}: HTTP #{code}"
+
+      {:error, %{reason: reason}} ->
+        raise "Failed to download #{filename} from #{url}: #{inspect(reason)}"
+    end
   end
+
+  defp elem_or({:ok, %HTTPoison.Response{status_code: code}}), do: {:http, code}
+  defp elem_or({:error, %{reason: reason}}), do: reason
+  defp elem_or(other), do: other
 end
