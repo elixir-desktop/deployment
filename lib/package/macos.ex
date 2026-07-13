@@ -463,9 +463,12 @@ defmodule Desktop.Deployment.Package.MacOS do
     Enum.find(uids, fn uid -> String.contains?(ids, uid) end)
   end
 
-  def maybe_import_pem(file, uids) do
+  def maybe_import_pem(file, uids, keychain_password \\ nil) do
+    keychain_password = keychain_password || System.get_env("MACOS_KEYCHAIN_PASSWORD")
+
     with nil <- do_find_developer_id(uids) do
-      cmd("security", ["import", file, "-k", keychain(), "-A"])
+      cmd("security", ["import", file, "-k", keychain(), "-A", "-T", "/usr/bin/codesign"])
+      maybe_set_key_partition_list(keychain_password)
 
       with nil <- do_find_developer_id(uids) do
         raise "Failed to import PEM for uid #{inspect(uids)}"
@@ -473,8 +476,22 @@ defmodule Desktop.Deployment.Package.MacOS do
     end
   end
 
+  defp maybe_set_key_partition_list(nil), do: :ok
+
+  defp maybe_set_key_partition_list(password) do
+    cmd("security", [
+      "set-key-partition-list",
+      "-S",
+      "apple-tool:,apple:,codesign:",
+      "-s",
+      "-k",
+      password,
+      keychain()
+    ])
+  end
+
   defp find_identity() do
-    cmd("security", ["find-identity", "-v", keychain()])
+    cmd("security", ["find-identity", "-v", "-p", "codesigning", keychain()])
   end
 
   @keychain_key {__MODULE__, :keychain}

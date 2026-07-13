@@ -41,7 +41,7 @@ defmodule Mix.Tasks.Desktop.CreateKeychain do
     file = "tmp.pem"
     File.write!(file, pem)
     uids = locate_uid(file) || raise "Could not locate UID in PEM"
-    maybe_import_pem(file, uids)
+    maybe_import_pem(file, uids, pass)
 
     # https://stackoverflow.com/questions/39868578/security-codesign-in-sierra-keychain-ignores-access-control-settings-and-ui-p
     # https://github.com/lando/code-sign-action/blob/main/action.yml
