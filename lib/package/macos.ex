@@ -471,7 +471,13 @@ defmodule Desktop.Deployment.Package.MacOS do
       maybe_set_key_partition_list(keychain_password)
 
       with nil <- do_find_developer_id(uids) do
-        raise "Failed to import PEM for uid #{inspect(uids)}"
+        ids = find_identity()
+
+        raise """
+        Failed to import PEM for uid #{inspect(uids)}.
+        Available code signing identities:
+        #{ids}
+        """
       end
     end
   end
