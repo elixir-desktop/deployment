@@ -416,13 +416,23 @@ defmodule Desktop.Deployment.Package.MacOS do
   @friendly_attribute {2, 5, 4, 3}
   def locate_uid(pem_filename) do
     cert = File.read!(pem_filename)
-    # Ensure :public_key is started (see extra_applications in mix.exs)
-    # ref https://elixirforum.com/t/nerves-key-hub-mix-tasks-fail-because-of-missing-pubkey-pem-module/62821/2
-    Application.ensure_all_started(:public_key)
+    ensure_public_key!()
     cert_der = List.keyfind!(:public_key.pem_decode(cert), :Certificate, 0)
 
     :public_key.der_decode(:Certificate, elem(cert_der, 1))
     |> scan()
+  end
+
+  # Mix tasks do not automatically put OTP apps on the code path the way a
+  # started release does. Mix.ensure_application!/1 loads :public_key (and
+  # crypto/asn1) onto the path; ensure_all_started/1 then starts them.
+  # Application.ensure_all_started/1 alone is not enough in Mix task context
+  # and silently returning {:error, _} left pem_decode undefined on CI.
+  # ref https://elixirforum.com/t/nerves-key-hub-mix-tasks-fail-because-of-missing-pubkey-pem-module/62821/2
+  defp ensure_public_key! do
+    Mix.ensure_application!(:public_key)
+    {:ok, _} = Application.ensure_all_started(:public_key)
+    :ok
   end
 
   def find_developer_id() do
