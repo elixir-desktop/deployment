@@ -8,29 +8,31 @@ defmodule LocateUidTest do
     key = Path.join(dir, "desktop-deployment-test-key.pem")
     cert = Path.join(dir, "desktop-deployment-test-cert.pem")
 
-    {_, 0} =
-      System.cmd("openssl", [
-        "req",
-        "-x509",
-        "-newkey",
-        "rsa:2048",
-        "-keyout",
-        key,
-        "-out",
-        cert,
-        "-days",
-        "1",
-        "-nodes",
-        "-subj",
-        "/CN=Desktop Deployment Test (TESTUID)"
-      ])
+    try do
+      {_, 0} =
+        System.cmd("openssl", [
+          "req",
+          "-x509",
+          "-newkey",
+          "rsa:2048",
+          "-keyout",
+          key,
+          "-out",
+          cert,
+          "-days",
+          "1",
+          "-nodes",
+          "-subj",
+          "/CN=Desktop Deployment Test (TESTUID)"
+        ])
 
-    # Must not raise UndefinedFunctionError for :public_key.pem_decode/1
-    uids = MacOS.locate_uid(cert)
-    assert is_list(uids)
-    assert "TESTUID" in uids
-  after
-    File.rm(Path.join(System.tmp_dir!(), "desktop-deployment-test-key.pem"))
-    File.rm(Path.join(System.tmp_dir!(), "desktop-deployment-test-cert.pem"))
+      # Must not raise UndefinedFunctionError for :public_key.pem_decode/1
+      uids = MacOS.locate_uid(cert)
+      assert is_list(uids)
+      assert "TESTUID" in uids
+    after
+      File.rm(key)
+      File.rm(cert)
+    end
   end
 end

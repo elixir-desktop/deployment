@@ -3,7 +3,7 @@ on: ["push", "pull_request"]
 env:
   ASDF_VERSION: v0.18.1
   OTP_VERSION: 24.3.4.15
-  ELIXIR_VERSION: 1.14.5
+  ELIXIR_VERSION: 1.15.8
   ELIXIR_VARIANT: -otp-24
 
 jobs:
