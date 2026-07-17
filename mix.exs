@@ -6,7 +6,7 @@ defmodule Desktop.Deployment.MixProject do
     [
       app: :desktop_deployment,
       version: @version,
-      elixir: "~> 1.10",
+      elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       # compilers: Mix.compilers(),
       start_permanent: Mix.env() == :prod,
