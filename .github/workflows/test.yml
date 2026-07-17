@@ -15,7 +15,7 @@ jobs:
       id: asdf-cache
       with:
         path: /Users/runner/.asdf
-        key: macos-15-asdf-${{ env.ASDF_VERSION }}-otp-${{ env.OTP_VERSION }}
+        key: macos-15-asdf-${{ env.ASDF_VERSION }}-otp-${{ env.OTP_VERSION }}-elixir-${{ env.ELIXIR_VERSION }}${{ env.ELIXIR_VARIANT }}
       
     - name: "Installing Erlang"
       if: steps.asdf-cache.outputs.cache-hit != 'true'
@@ -42,7 +42,7 @@ jobs:
       uses: actions/cache/save@v3
       with:
         path: /Users/runner/.asdf
-        key: macos-15-asdf-${{ env.ASDF_VERSION }}-otp-${{ env.OTP_VERSION }}
+        key: macos-15-asdf-${{ env.ASDF_VERSION }}-otp-${{ env.OTP_VERSION }}-elixir-${{ env.ELIXIR_VERSION }}${{ env.ELIXIR_VARIANT }}
   
     - uses: actions/checkout@v3
     - name: "Create keychain"
