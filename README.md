@@ -77,7 +77,26 @@ To support windows code signing the user has to create two certificate files `ap
 
 ### MacOS -> DMG
 
-MacOS has two variants ARM (M1,2,3...) and legacy x86 if you want to enable your builds on both platforms the easiest way is to have the CI (e.g. GitHub) have the build done on a x86_64 machine. Then the rosetta compatibility layer will make it runnable on ARM too. For this rosetta is enabled explicitly in the `.plist` file for ARM machines.
+**Default packaging uses DesktopWebView host-first layout** (see elixir-desktop/webview):
+
+```
+MyApp.app/Contents/
+  MacOS/DesktopWebView
+  Resources/
+    DesktopWebView.ini
+    beam/                 # Mix release
+    icons.icns
+  Info.plist              # CFBundleExecutable = DesktopWebView
+```
+
+Locate the host binary via (first match wins):
+
+1. `package.webview_binary`
+2. `DESKTOP_WEBVIEW_BINARY`
+3. `:desktop_webview` app `priv/native/macos/DesktopWebView`
+4. `deps/desktop_webview/priv/...` or sibling `../webview/priv/...`
+
+Set `webview_backend: :wx` in `package()` to keep the legacy BEAM-first `MacOS/run` + OTP `:wx` layout (including optional CEF `webview` helper).
 
 Code signing is done as part of the `desktop.installer` task if and only if a developer_id is provided. This can be provided through one of these environment variables:
 

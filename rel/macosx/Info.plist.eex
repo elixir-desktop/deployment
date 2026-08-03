@@ -9,7 +9,7 @@
 	<key>CFBundleIdentifier</key>
 	<string><%= @package.identifier %></string>
 	<key>CFBundleExecutable</key>
-	<string>run</string>
+	<string><%= Map.get(@package.priv, :bundle_executable, "DesktopWebView") %></string>
 	<key>CFBundleIconFile</key>
 	<string>icons.icns</string>
 	<key>CFBundlePackageType</key>
@@ -21,9 +21,13 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>10.13</string>
+	<string>13.0</string>
 	<key>NSUserNotificationAlertStyle</key>
 	<string>alert</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string><%= @package.microphone_usage %></string>
+	<key>NSCameraUsageDescription</key>
+	<string><%= @package.camera_usage %></string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
