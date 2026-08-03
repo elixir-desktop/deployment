@@ -164,10 +164,12 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   defp rewrite_app_deps(pkg, root) do
-    Enum.each(find_binaries(root), fn bin ->
-      rewrite_deps(bin, fn dep ->
-        if should_rewrite?(bin, dep), do: rewrite_to_approot(pkg, bin, dep, root)
-      end)
+    Enum.each(find_binaries(root), &rewrite_binary_deps(&1, pkg, root))
+  end
+
+  defp rewrite_binary_deps(bin, pkg, root) do
+    rewrite_deps(bin, fn dep ->
+      if should_rewrite?(bin, dep), do: rewrite_to_approot(pkg, bin, dep, root)
     end)
   end
 
