@@ -1,26 +1,34 @@
 name: "test mix.create_keychain"
 on: ["push", "pull_request"]
 env:
+  ASDF_VERSION: v0.18.1
   OTP_VERSION: 24.3.4.15
-  ELIXIR_VERSION: 1.14.5
+  ELIXIR_VERSION: 1.15.8
   ELIXIR_VARIANT: -otp-24
 
 jobs:
   macos:
-    runs-on: macos-11
+    runs-on: macos-15
     steps:
     - name: asdf cache
       uses: actions/cache@v3
       id: asdf-cache
       with:
         path: /Users/runner/.asdf
-        key: macos-otp-${{ env.OTP_VERSION }}
+        key: macos-15-asdf-${{ env.ASDF_VERSION }}-otp-${{ env.OTP_VERSION }}-elixir-${{ env.ELIXIR_VERSION }}${{ env.ELIXIR_VARIANT }}
       
     - name: "Installing Erlang"
       if: steps.asdf-cache.outputs.cache-hit != 'true'
       run: |
-        git clone https://github.com/asdf-vm/asdf.git ~/.asdf
-        . $HOME/.asdf/asdf.sh
+        mkdir -p ~/.asdf/bin ~/.asdf/shims
+        case $(uname -m) in
+          arm64)  ASDF_ARCH=darwin-arm64 ;;
+          x86_64) ASDF_ARCH=darwin-amd64 ;;
+          *) echo "Unsupported architecture: $(uname -m)"; exit 1 ;;
+        esac
+        curl -sSL "https://github.com/asdf-vm/asdf/releases/download/${{ env.ASDF_VERSION }}/asdf-${{ env.ASDF_VERSION }}-${ASDF_ARCH}.tar.gz" | tar -xz -C ~/.asdf/bin
+        export ASDF_DATA_DIR="$HOME/.asdf"
+        export PATH="$ASDF_DATA_DIR/shims:$ASDF_DATA_DIR/bin:$PATH"
         asdf plugin add erlang
         asdf plugin add elixir        
         echo "erlang ${{ env.OTP_VERSION }}" >> .tool-versions
@@ -34,20 +42,20 @@ jobs:
       uses: actions/cache/save@v3
       with:
         path: /Users/runner/.asdf
-        key: macos-otp-${{ env.OTP_VERSION }}
+        key: macos-15-asdf-${{ env.ASDF_VERSION }}-otp-${{ env.OTP_VERSION }}-elixir-${{ env.ELIXIR_VERSION }}${{ env.ELIXIR_VARIANT }}
   
     - uses: actions/checkout@v3
     - name: "Create keychain"
-      env:
-        MACOS_PEM: ${{ secrets.MACOS_PEM }}
       run: |
         echo "erlang ${{ env.OTP_VERSION }}" > .tool-versions
         echo "elixir ${{ env.ELIXIR_VERSION }}${{ env.ELIXIR_VARIANT }}" >> .tool-versions
-        . $HOME/.asdf/asdf.sh
+        export ASDF_DATA_DIR="$HOME/.asdf"
+        export PATH="$ASDF_DATA_DIR/shims:$ASDF_DATA_DIR/bin:$PATH"
         mix local.hex --force
         mix local.rebar --force
         mix deps.get
         mix lint
-        mix desktop.create_keychain
+        mix desktop.create_keychain ci
         export MACOS_KEYCHAIN=$HOME/Library/Keychains/macos-build.keychain
-        mix test test/codesign_test.exs
+        export DEVELOPER_ID=-
+        mix test test/codesign_test.exs test/locate_uid_test.exs

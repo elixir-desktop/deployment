@@ -168,14 +168,17 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   defp rewrite_binary_deps(bin, pkg, root) do
-    rewrite_deps(bin, fn dep ->
-      if should_rewrite?(bin, dep), do: rewrite_to_approot(pkg, bin, dep, root)
-    end)
+    rewrite_deps(bin, &maybe_rewrite_dep_to_approot(pkg, bin, &1, root))
   end
 
   defp finalize_macos_installer(pkg, root) do
     developer_id = find_developer_id()
-    if developer_id != nil, do: codesign(root)
+
+    if developer_id != nil do
+      codesign(root)
+    else
+      adhoc_sign(root)
+    end
 
     dmg = make_dmg(pkg)
     maybe_make_pkg(pkg)
@@ -413,11 +416,18 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   def find_deps(object) do
-    # otool -L can't handle filenames such as "webview (Alerts)"
-    if String.ends_with?(object, ")") do
-      []
-    else
-      do_find_deps(object)
+    cond do
+      # otool -L can't handle filenames such as "webview (Alerts)"
+      String.ends_with?(object, ")") ->
+        []
+
+      # The recorded path may not exist on this machine (e.g. a builder path
+      # baked into a precompiled NIF). otool -L would fail hard on it.
+      not File.exists?(object) ->
+        []
+
+      true ->
+        do_find_deps(object)
     end
   end
 
@@ -450,6 +460,10 @@ defmodule Desktop.Deployment.Package.MacOS do
          ))
   end
 
+  defp maybe_rewrite_dep_to_approot(pkg, bin, dep, root) do
+    if should_rewrite?(bin, dep), do: rewrite_to_approot(pkg, bin, dep, root)
+  end
+
   defp rewrite_to_approot(pkg, bin, dep, root) do
     location =
       if String.contains?(dep, ".framework/") do
@@ -474,12 +488,46 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   def rewrite_dep(object, old_name, new_name) do
-    cmd!("install_name_tool", ["-change", old_name, new_name, object])
+    if cmd_status("install_name_tool", ["-change", old_name, new_name, object]) != 0 do
+      # install_name_tool can only rewrite an install path in place; it cannot
+      # grow a binary's Mach-O load commands to fit a longer path unless the
+      # binary was linked with -headerpad_max_install_names. Homebrew/kerl-built
+      # OTP binaries (e.g. crypto.so linking libcrypto) usually have no spare
+      # header room, so pointing them at the bundled copy via a long
+      # @loader_path/../../.../priv/lib.dylib fails. Fall back to placing a copy
+      # of the dependency next to the binary and using the shortest possible
+      # @loader_path/<basename>, which never exceeds the (absolute) original and
+      # therefore always fits without relinking.
+      colocate_dep(object, old_name, new_name)
+    end
+
     # The install_name_tool does leave the binary with an invalid signature. Invalid signatures
     # are not launchable, so to make it locally runnable for development (without a proper certificate)
     # we sign it with an empty signature.
     cmd!("codesign", ["-f", "-s", "-", object])
   end
+
+  defp colocate_dep(object, old_name, new_name) do
+    basename = Path.basename(new_name)
+    bundled = Path.expand(Path.join(Path.dirname(object), loader_relative(new_name)))
+    local = Path.join(Path.dirname(object), basename)
+
+    if not File.exists?(bundled) do
+      raise "Cannot relocate #{old_name} for #{object}: bundled copy not found at #{bundled}"
+    end
+
+    if bundled != local and not File.exists?(local) do
+      File.cp!(bundled, local)
+      File.chmod!(local, 0o755)
+      # Match how the rest of the tree is left: adhoc-signed so it is launchable.
+      cmd!("codesign", ["-f", "-s", "-", local])
+    end
+
+    cmd!("install_name_tool", ["-change", old_name, "@loader_path/#{basename}", object])
+  end
+
+  defp loader_relative("@loader_path/" <> rest), do: rest
+  defp loader_relative(path), do: path
 
   def rewrite_deps(object, fun) do
     find_deps(object)
@@ -496,13 +544,23 @@ defmodule Desktop.Deployment.Package.MacOS do
   @friendly_attribute {2, 5, 4, 3}
   def locate_uid(pem_filename) do
     cert = File.read!(pem_filename)
-    # Test for missing public_key application
-    # ref https://elixirforum.com/t/nerves-key-hub-mix-tasks-fail-because-of-missing-pubkey-pem-module/62821/2
-    Mix.ensure_application!(:public_key)
+    ensure_public_key!()
     cert_der = List.keyfind!(:public_key.pem_decode(cert), :Certificate, 0)
 
     :public_key.der_decode(:Certificate, elem(cert_der, 1))
     |> scan()
+  end
+
+  # Mix tasks do not automatically put OTP apps on the code path the way a
+  # started release does. Mix.ensure_application!/1 loads :public_key (and
+  # crypto/asn1) onto the path; ensure_all_started/1 then starts them.
+  # Application.ensure_all_started/1 alone is not enough in Mix task context
+  # and silently returning {:error, _} left pem_decode undefined on CI.
+  # ref https://elixirforum.com/t/nerves-key-hub-mix-tasks-fail-because-of-missing-pubkey-pem-module/62821/2
+  defp ensure_public_key! do
+    Mix.ensure_application!(:public_key)
+    {:ok, _} = Application.ensure_all_started(:public_key)
+    :ok
   end
 
   def find_developer_id() do
@@ -540,17 +598,94 @@ defmodule Desktop.Deployment.Package.MacOS do
 
   defp do_find_developer_id(uids) do
     ids = find_identity()
-    Enum.find(uids, fn uid -> String.contains?(ids, uid) end)
+
+    Enum.find(normalize_uids(uids), fn uid -> String.contains?(ids, uid) end)
   end
 
-  def maybe_import_pem(file, uids) do
-    with nil <- do_find_developer_id(uids) do
-      cmd("security", ["import", file, "-k", keychain(), "-A"])
+  defp normalize_uids(uids) do
+    uids
+    |> List.wrap()
+    |> Enum.map(&uid_to_string/1)
+    |> Enum.uniq()
+  end
 
-      with nil <- do_find_developer_id(uids) do
-        raise "Failed to import PEM for uid #{inspect(uids)}"
+  defp uid_to_string(uid) when is_binary(uid) do
+    case uid do
+      <<0x13, len, rest::binary>> when len <= byte_size(rest) ->
+        binary_part(rest, 0, len)
+
+      _ ->
+        uid
+    end
+  end
+
+  defp uid_to_string(uid) when is_list(uid), do: List.to_string(uid)
+  defp uid_to_string(uid), do: to_string(uid)
+
+  def maybe_import_p12(file, password, uids, keychain_password \\ nil) do
+    keychain_password = keychain_password || System.get_env("MACOS_KEYCHAIN_PASSWORD")
+    normalized_uids = normalize_uids(uids)
+
+    with nil <- do_find_developer_id(normalized_uids) do
+      cmd("security", [
+        "import",
+        file,
+        "-k",
+        keychain(),
+        "-P",
+        password,
+        "-A",
+        "-T",
+        "/usr/bin/codesign",
+        "-f",
+        "pkcs12"
+      ])
+
+      maybe_set_key_partition_list(keychain_password)
+
+      with nil <- do_find_developer_id(normalized_uids) do
+        ids = find_identity()
+
+        raise """
+        Failed to import PKCS12 for uid #{inspect(normalized_uids)}.
+        Available identities:
+        #{ids}
+        """
       end
     end
+  end
+
+  def maybe_import_pem(file, uids, keychain_password \\ nil) do
+    keychain_password = keychain_password || System.get_env("MACOS_KEYCHAIN_PASSWORD")
+
+    with nil <- do_find_developer_id(uids) do
+      cmd("security", ["import", file, "-k", keychain(), "-A", "-T", "/usr/bin/codesign"])
+      maybe_set_key_partition_list(keychain_password)
+
+      with nil <- do_find_developer_id(uids) do
+        ids = find_identity()
+
+        raise """
+        Failed to import PEM for uid #{inspect(uids)}.
+        Available code signing identities:
+        #{ids}
+        """
+      end
+    end
+  end
+
+  defp maybe_set_key_partition_list(nil), do: :ok
+
+  defp maybe_set_key_partition_list(password) do
+    cmd("security", [
+      "set-key-partition-list",
+      "-S",
+      "apple-tool:,apple:,codesign:",
+      "-s",
+      "-k",
+      password,
+      keychain()
+    ])
   end
 
   defp find_identity() do
@@ -598,7 +733,7 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   defp scan({:AttributeTypeAndValue, @uid_attribute, uid}) do
-    [String.trim(uid)]
+    [uid_to_string(uid) |> String.trim()]
   end
 
   defp scan([head | tail]), do: scan(head) ++ scan(tail)
@@ -619,6 +754,27 @@ defmodule Desktop.Deployment.Package.MacOS do
     |> Enum.filter(fn file -> File.lstat!(file).type == :regular end)
     |> Enum.concat(frameworks)
     |> Enum.uniq()
+  end
+
+  def adhoc_sign(root) do
+    # Without a Developer ID we can't produce a distributable signature, but the
+    # bundle must still be *validly* signed to run: stripping and install-name
+    # rewriting invalidate the signatures that precompiled NIFs/dylibs ship with,
+    # and modern macOS (arm64, and Sequoia/Tahoe especially) SIGKILLs any binary
+    # whose code signature is invalid the moment it is dlopen'd. Ad-hoc sign every
+    # binary so a locally built app launches. Sign nested code before the bundle
+    # so the outer seal is valid.
+    to_sign = find_binaries(root)
+    File.write!("codesign.log", Enum.join(to_sign, "\n"))
+
+    {frameworks, rest} =
+      Enum.split_with(to_sign, fn path -> String.contains?(path, "/Frameworks/") end)
+
+    for object <- frameworks ++ rest do
+      cmd!("codesign", ["-f", "-s", "-", object])
+    end
+
+    cmd!("codesign", ["-f", "-s", "-", root])
   end
 
   def codesign(root) do
