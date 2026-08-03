@@ -20,6 +20,14 @@ defmodule Desktop.Deployment.Package do
             env: %{},
             # import options
             import_inofitywait: false,
+            # macOS DesktopWebView host-first packaging (default on MacOS)
+            webview_backend: :desktop_webview,
+            webview_binary: nil,
+            beam_app_name: nil,
+            microphone_usage:
+              "This app may use the microphone for calls and voice features inside the app.",
+            camera_usage:
+              "This app may use the camera for calls and video features inside the app.",
             # defined during the process
             app_name: nil,
             release: nil,

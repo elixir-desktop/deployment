@@ -16,7 +16,118 @@ defmodule Desktop.Deployment.Package.MacOS do
     pkg
   end
 
-  def release(%Package{release: %Mix.Release{path: path} = rel} = pkg) do
+  def release(%Package{} = pkg) do
+    if pkg.webview_backend == :desktop_webview do
+      release_desktop_webview(pkg)
+    else
+      release_legacy_wx(pkg)
+    end
+  end
+
+  defp release_desktop_webview(%Package{release: %Mix.Release{path: path} = rel} = pkg) do
+    build_root = Path.join([path, "..", ".."]) |> Path.expand()
+    root = Path.join(build_root, "#{pkg.name}.app")
+    File.rm_rf(root)
+
+    contents = Path.join(root, "Contents")
+    bindir = Path.join(contents, "MacOS")
+    resources = Path.join(contents, "Resources")
+    beam_root = Path.join(resources, "beam")
+
+    File.mkdir_p!(bindir)
+    File.mkdir_p!(beam_root)
+
+    host_bin = resolve_webview_binary!(pkg)
+    File.cp!(host_bin, Path.join(bindir, "DesktopWebView"))
+    File.chmod!(Path.join(bindir, "DesktopWebView"), 0o755)
+
+    beam_app = pkg.beam_app_name || to_string(pkg.app_name || Mix.Project.config()[:app])
+
+    ini = """
+    [beam]
+    path = beam
+    app_name = #{beam_app}
+    args = start
+    working_dir = beam
+
+    [network]
+    host = 127.0.0.1
+    port = 0
+
+    [lifetime]
+    mode = reconnect
+    """
+
+    File.write!(Path.join(resources, "DesktopWebView.ini"), ini)
+
+    pkg = %{pkg | priv: Map.put(pkg.priv, :bundle_executable, "DesktopWebView")}
+
+    content = eval_eex(Package.toolpath("rel/macosx/InfoPlist.strings.eex"), rel, pkg)
+    utf8bom = :unicode.encoding_to_bom(:utf8)
+
+    for lang <- ["en", "Base"] do
+      langdir = Path.join(resources, "#{lang}.lproj")
+      File.mkdir_p!(langdir)
+      File.write!(Path.join(langdir, "InfoPlist.strings"), utf8bom <> content)
+    end
+
+    content = eval_eex(Package.toolpath("rel/macosx/Info.plist.eex"), rel, pkg)
+    File.write!(Path.join(contents, "Info.plist"), content)
+    File.write!(Path.join(contents, "PkgInfo"), "APPL????")
+
+    File.ls!(path)
+    |> Enum.each(fn file ->
+      File.cp_r!(Path.join(path, file), Path.join(beam_root, file), fn src, dst ->
+        file_md5(src) != file_md5(dst)
+      end)
+    end)
+
+    icon_path = ensure_icns!(pkg, build_root)
+    cp!(icon_path, resources)
+
+    with [beam_smp] <- wildcard(root, "**/*.smp") do
+      oldbin = File.read!(beam_smp)
+
+      with [match] <-
+             Regex.run(
+               ~r/<\!--PLIST_TEMPLATE_START_64f5fc2af15ab6092d25ede0fdc039e0789aa6e9.+PLIST_TEMPLATE_END_64f5fc2af15ab6092d25ede0fdc039e0789aa6e9-->/s,
+               oldbin
+             ) do
+        size = byte_size(match)
+        [_all, replacement] = Regex.run(~r/<plist[^>]*>(.+)<\/plist>/s, content)
+        replacement = String.pad_trailing(replacement, size, " ")
+        bin = String.replace(oldbin, match, replacement)
+        IO.puts("Embedding Info.plist into beam.smp[#{byte_size(oldbin)} -> #{byte_size(bin)}]")
+        File.write!(beam_smp, bin)
+        cmd!("codesign", ["-s", "-", beam_smp])
+      end
+    end
+
+    for bin <- find_binaries(root) do
+      rewrite_deps(bin, fn dep ->
+        if should_rewrite?(bin, dep) do
+          rewrite_to_approot(pkg, bin, dep, root)
+        end
+      end)
+    end
+
+    developer_id = find_developer_id()
+
+    if developer_id != nil do
+      codesign(root)
+    end
+
+    dmg = make_dmg(pkg)
+    maybe_make_pkg(pkg)
+
+    if developer_id != nil do
+      package_sign(developer_id, dmg)
+    end
+
+    %{pkg | priv: Map.put(pkg.priv, :installer_name, dmg)}
+  end
+
+  defp release_legacy_wx(%Package{release: %Mix.Release{path: path} = rel} = pkg) do
     build_root = Path.join([path, "..", ".."]) |> Path.expand()
     root = Path.join(build_root, "#{pkg.name}.app")
     # Remove crust
@@ -26,6 +137,8 @@ defmodule Desktop.Deployment.Package.MacOS do
     resources = Path.join(contents, "Resources")
 
     File.mkdir_p!(bindir)
+
+    pkg = %{pkg | priv: Map.put(pkg.priv, :bundle_executable, "run")}
 
     content = eval_eex(Package.toolpath("rel/macosx/InfoPlist.strings.eex"), rel, pkg)
     utf8bom = :unicode.encoding_to_bom(:utf8)
@@ -50,26 +163,7 @@ defmodule Desktop.Deployment.Package.MacOS do
       end)
     end)
 
-    # Creating/copying the icon
-    icon_path = Path.absname("rel/macosx/icons.icns")
-
-    if not File.exists?(icon_path) do
-      iconset = Path.join(build_root, "icons.iconset")
-      File.mkdir_p!(iconset)
-
-      for size <- [16, 32, 128, 256, 512] do
-        outfile = Path.join(iconset, "icon_#{size}x#{size}.png")
-        cmd!("sips", ["-z", size, size, pkg.icon, "--out", outfile])
-        outfile = Path.join(iconset, "icon_#{size}x#{size}@2.png")
-        cmd!("sips", ["-z", 2 * size, 2 * size, pkg.icon, "--out", outfile])
-      end
-
-      outfile = Path.join(iconset, "icon_512x512@2x.png")
-      cmd!("sips", ["-z", 1024, 1024, pkg.icon, "--out", outfile])
-      File.mkdir_p!(Path.dirname(icon_path))
-      cmd!("iconutil", ["-c", "icns", iconset, "-o", icon_path])
-    end
-
+    icon_path = ensure_icns!(pkg, build_root)
     cp!(icon_path, resources)
     maybe_import_webview(pkg, contents)
 
@@ -114,6 +208,61 @@ defmodule Desktop.Deployment.Package.MacOS do
     end
 
     %{pkg | priv: Map.put(pkg.priv, :installer_name, dmg)}
+  end
+
+  defp ensure_icns!(%Package{} = pkg, build_root) do
+    icon_path = Path.absname("rel/macosx/icons.icns")
+
+    if not File.exists?(icon_path) do
+      iconset = Path.join(build_root, "icons.iconset")
+      File.mkdir_p!(iconset)
+
+      for size <- [16, 32, 128, 256, 512] do
+        outfile = Path.join(iconset, "icon_#{size}x#{size}.png")
+        cmd!("sips", ["-z", size, size, pkg.icon, "--out", outfile])
+        outfile = Path.join(iconset, "icon_#{size}x#{size}@2.png")
+        cmd!("sips", ["-z", 2 * size, 2 * size, pkg.icon, "--out", outfile])
+      end
+
+      outfile = Path.join(iconset, "icon_512x512@2x.png")
+      cmd!("sips", ["-z", 1024, 1024, pkg.icon, "--out", outfile])
+      File.mkdir_p!(Path.dirname(icon_path))
+      cmd!("iconutil", ["-c", "icns", iconset, "-o", icon_path])
+    end
+
+    icon_path
+  end
+
+  defp resolve_webview_binary!(%Package{} = pkg) do
+    candidates =
+      [
+        pkg.webview_binary,
+        System.get_env("DESKTOP_WEBVIEW_BINARY"),
+        desktop_webview_priv_binary(),
+        Path.expand("deps/desktop_webview/priv/native/macos/DesktopWebView"),
+        Path.expand("../webview/priv/native/macos/DesktopWebView"),
+        Path.expand("../../webview/priv/native/macos/DesktopWebView")
+      ]
+      |> Enum.filter(&(is_binary(&1) and &1 != ""))
+
+    case Enum.find(candidates, &File.exists?/1) do
+      nil ->
+        raise """
+        DesktopWebView host binary not found for macOS packaging.
+
+        Set DESKTOP_WEBVIEW_BINARY, package.webview_binary, or build/install
+        :desktop_webview so priv/native/macos/DesktopWebView exists.
+        """
+
+      path ->
+        path
+    end
+  end
+
+  defp desktop_webview_priv_binary do
+    Application.app_dir(:desktop_webview, "priv/native/macos/DesktopWebView")
+  rescue
+    _ -> nil
   end
 
   def package_sign(developer_id, dmg) do
