@@ -85,46 +85,9 @@ defmodule Desktop.Deployment.Package.MacOS do
     icon_path = ensure_icns!(pkg, build_root)
     cp!(icon_path, resources)
 
-    with [beam_smp] <- wildcard(root, "**/*.smp") do
-      oldbin = File.read!(beam_smp)
-
-      with [match] <-
-             Regex.run(
-               ~r/<\!--PLIST_TEMPLATE_START_64f5fc2af15ab6092d25ede0fdc039e0789aa6e9.+PLIST_TEMPLATE_END_64f5fc2af15ab6092d25ede0fdc039e0789aa6e9-->/s,
-               oldbin
-             ) do
-        size = byte_size(match)
-        [_all, replacement] = Regex.run(~r/<plist[^>]*>(.+)<\/plist>/s, content)
-        replacement = String.pad_trailing(replacement, size, " ")
-        bin = String.replace(oldbin, match, replacement)
-        IO.puts("Embedding Info.plist into beam.smp[#{byte_size(oldbin)} -> #{byte_size(bin)}]")
-        File.write!(beam_smp, bin)
-        cmd!("codesign", ["-s", "-", beam_smp])
-      end
-    end
-
-    for bin <- find_binaries(root) do
-      rewrite_deps(bin, fn dep ->
-        if should_rewrite?(bin, dep) do
-          rewrite_to_approot(pkg, bin, dep, root)
-        end
-      end)
-    end
-
-    developer_id = find_developer_id()
-
-    if developer_id != nil do
-      codesign(root)
-    end
-
-    dmg = make_dmg(pkg)
-    maybe_make_pkg(pkg)
-
-    if developer_id != nil do
-      package_sign(developer_id, dmg)
-    end
-
-    %{pkg | priv: Map.put(pkg.priv, :installer_name, dmg)}
+    maybe_embed_plist_in_beam(root, content)
+    rewrite_app_deps(pkg, root)
+    finalize_macos_installer(pkg, root)
   end
 
   defp release_legacy_wx(%Package{release: %Mix.Release{path: path} = rel} = pkg) do
@@ -167,15 +130,26 @@ defmodule Desktop.Deployment.Package.MacOS do
     cp!(icon_path, resources)
     maybe_import_webview(pkg, contents)
 
-    # Maybe embedding Info.plist into the beam.smp
-    with [beam_smp] <- wildcard(root, "**/*.smp") do
-      oldbin = File.read!(beam_smp)
+    maybe_embed_plist_in_beam(root, content)
+    rewrite_app_deps(pkg, root)
+    finalize_macos_installer(pkg, root)
+  end
 
-      with [match] <-
-             Regex.run(
-               ~r/<\!--PLIST_TEMPLATE_START_64f5fc2af15ab6092d25ede0fdc039e0789aa6e9.+PLIST_TEMPLATE_END_64f5fc2af15ab6092d25ede0fdc039e0789aa6e9-->/s,
-               oldbin
-             ) do
+  defp maybe_embed_plist_in_beam(root, content) do
+    case wildcard(root, "**/*.smp") do
+      [beam_smp] -> embed_plist_template(beam_smp, content)
+      _ -> :ok
+    end
+  end
+
+  defp embed_plist_template(beam_smp, content) do
+    oldbin = File.read!(beam_smp)
+
+    case Regex.run(
+           ~r/<\!--PLIST_TEMPLATE_START_64f5fc2af15ab6092d25ede0fdc039e0789aa6e9.+PLIST_TEMPLATE_END_64f5fc2af15ab6092d25ede0fdc039e0789aa6e9-->/s,
+           oldbin
+         ) do
+      [match] ->
         size = byte_size(match)
         [_all, replacement] = Regex.run(~r/<plist[^>]*>(.+)<\/plist>/s, content)
         replacement = String.pad_trailing(replacement, size, " ")
@@ -183,29 +157,27 @@ defmodule Desktop.Deployment.Package.MacOS do
         IO.puts("Embedding Info.plist into beam.smp[#{byte_size(oldbin)} -> #{byte_size(bin)}]")
         File.write!(beam_smp, bin)
         cmd!("codesign", ["-s", "-", beam_smp])
-      end
-    end
 
-    for bin <- find_binaries(root) do
+      _ ->
+        :ok
+    end
+  end
+
+  defp rewrite_app_deps(pkg, root) do
+    Enum.each(find_binaries(root), fn bin ->
       rewrite_deps(bin, fn dep ->
-        if should_rewrite?(bin, dep) do
-          rewrite_to_approot(pkg, bin, dep, root)
-        end
+        if should_rewrite?(bin, dep), do: rewrite_to_approot(pkg, bin, dep, root)
       end)
-    end
+    end)
+  end
 
+  defp finalize_macos_installer(pkg, root) do
     developer_id = find_developer_id()
-
-    if developer_id != nil do
-      codesign(root)
-    end
+    if developer_id != nil, do: codesign(root)
 
     dmg = make_dmg(pkg)
     maybe_make_pkg(pkg)
-
-    if developer_id != nil do
-      package_sign(developer_id, dmg)
-    end
+    if developer_id != nil, do: package_sign(developer_id, dmg)
 
     %{pkg | priv: Map.put(pkg.priv, :installer_name, dmg)}
   end
