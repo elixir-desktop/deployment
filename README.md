@@ -77,26 +77,27 @@ To support windows code signing the user has to create two certificate files `ap
 
 ### MacOS -> DMG
 
-**Default packaging uses DesktopWebView host-first layout** (see elixir-desktop/webview):
+**Default packaging uses host-first layout** (native host binary owns the process; Mix release is a child under `Resources/`):
 
 ```
 MyApp.app/Contents/
-  MacOS/DesktopWebView
+  MacOS/<HostExecutable>
   Resources/
-    DesktopWebView.ini
-    beam/                 # Mix release
+    <HostExecutable>.ini
+    beam/                 # Mix release (package.release_subdir, default "beam")
     icons.icns
-  Info.plist              # CFBundleExecutable = DesktopWebView
+  Info.plist              # CFBundleExecutable = <HostExecutable>
 ```
 
 Locate the host binary via (first match wins):
 
-1. `package.webview_binary`
-2. `DESKTOP_WEBVIEW_BINARY`
-3. `:desktop_webview` app `priv/native/macos/DesktopWebView`
-4. `deps/desktop_webview/priv/...` or sibling `../webview/priv/...`
+1. `package.host_binary`
+2. `DESKTOP_HOST_BINARY` (or legacy `DESKTOP_WEBVIEW_BINARY`)
+3. Convention discovery: any Mix dependency that ships `priv/native/macos/<executable>`
 
-Set `webview_backend: :wx` in `package()` to keep the legacy BEAM-first `MacOS/run` + OTP `:wx` layout (including optional CEF `webview` helper).
+Deployment does not hardcode a particular webview package. Apps that use elixir-desktop/webview simply ship that binary under the convention above (or set `host_binary`).
+
+Set `macos_layout: :release_first` in `package()` to keep the legacy BEAM-first `MacOS/run` layout (OTP `:wx` / optional CEF helper). Deprecated alias: `webview_backend: :wx`.
 
 Code signing is done as part of the `desktop.installer` task if and only if a developer_id is provided. This can be provided through one of these environment variables:
 

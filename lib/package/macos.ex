@@ -17,14 +17,15 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   def release(%Package{} = pkg) do
-    if pkg.webview_backend == :desktop_webview do
-      release_desktop_webview(pkg)
-    else
-      release_legacy_wx(pkg)
+    case pkg.macos_layout do
+      :host_first -> release_host_first(pkg)
+      :release_first -> release_release_first(pkg)
+      other ->
+        raise "Unknown macos_layout #{inspect(other)}. Use :host_first or :release_first."
     end
   end
 
-  defp release_desktop_webview(%Package{release: %Mix.Release{path: path} = rel} = pkg) do
+  defp release_host_first(%Package{release: %Mix.Release{path: path} = rel} = pkg) do
     build_root = Path.join([path, "..", ".."]) |> Path.expand()
     root = Path.join(build_root, "#{pkg.name}.app")
     File.rm_rf(root)
@@ -32,23 +33,25 @@ defmodule Desktop.Deployment.Package.MacOS do
     contents = Path.join(root, "Contents")
     bindir = Path.join(contents, "MacOS")
     resources = Path.join(contents, "Resources")
-    beam_root = Path.join(resources, "beam")
+    release_subdir = pkg.release_subdir || "beam"
+    beam_root = Path.join(resources, release_subdir)
 
     File.mkdir_p!(bindir)
     File.mkdir_p!(beam_root)
 
-    host_bin = resolve_webview_binary!(pkg)
-    File.cp!(host_bin, Path.join(bindir, "DesktopWebView"))
-    File.chmod!(Path.join(bindir, "DesktopWebView"), 0o755)
+    host_bin = resolve_host_binary!(pkg)
+    host_name = pkg.host_executable || Path.basename(host_bin)
+    File.cp!(host_bin, Path.join(bindir, host_name))
+    File.chmod!(Path.join(bindir, host_name), 0o755)
 
     beam_app = pkg.beam_app_name || to_string(pkg.app_name || Mix.Project.config()[:app])
 
     ini = """
     [beam]
-    path = beam
+    path = #{release_subdir}
     app_name = #{beam_app}
     args = start
-    working_dir = beam
+    working_dir = #{release_subdir}
 
     [network]
     host = 127.0.0.1
@@ -58,9 +61,14 @@ defmodule Desktop.Deployment.Package.MacOS do
     mode = reconnect
     """
 
-    File.write!(Path.join(resources, "DesktopWebView.ini"), ini)
+    # Host binaries (e.g. DesktopWebView) look for <executable>.ini next to Resources.
+    File.write!(Path.join(resources, "#{host_name}.ini"), ini)
 
-    pkg = %{pkg | priv: Map.put(pkg.priv, :bundle_executable, "DesktopWebView")}
+    # Layout metadata for later dylib rewrites: host owns MacOS/, release nested under Resources.
+    pkg =
+      pkg
+      |> put_priv(:bundle_executable, host_name)
+      |> put_priv(:bundle_release_rel, Path.join("Contents/Resources", release_subdir))
 
     content = eval_eex(Package.toolpath("rel/macosx/InfoPlist.strings.eex"), rel, pkg)
     utf8bom = :unicode.encoding_to_bom(:utf8)
@@ -90,7 +98,7 @@ defmodule Desktop.Deployment.Package.MacOS do
     finalize_macos_installer(pkg, root)
   end
 
-  defp release_legacy_wx(%Package{release: %Mix.Release{path: path} = rel} = pkg) do
+  defp release_release_first(%Package{release: %Mix.Release{path: path} = rel} = pkg) do
     build_root = Path.join([path, "..", ".."]) |> Path.expand()
     root = Path.join(build_root, "#{pkg.name}.app")
     # Remove crust
@@ -101,7 +109,11 @@ defmodule Desktop.Deployment.Package.MacOS do
 
     File.mkdir_p!(bindir)
 
-    pkg = %{pkg | priv: Map.put(pkg.priv, :bundle_executable, "run")}
+    # Mix release is copied directly under Contents/Resources/.
+    pkg =
+      pkg
+      |> put_priv(:bundle_executable, "run")
+      |> put_priv(:bundle_release_rel, "Contents/Resources")
 
     content = eval_eex(Package.toolpath("rel/macosx/InfoPlist.strings.eex"), rel, pkg)
     utf8bom = :unicode.encoding_to_bom(:utf8)
@@ -210,36 +222,73 @@ defmodule Desktop.Deployment.Package.MacOS do
     icon_path
   end
 
-  defp resolve_webview_binary!(%Package{} = pkg) do
-    candidates =
+  defp resolve_host_binary!(%Package{} = pkg) do
+    explicit =
       [
-        pkg.webview_binary,
-        System.get_env("DESKTOP_WEBVIEW_BINARY"),
-        desktop_webview_priv_binary(),
-        Path.expand("deps/desktop_webview/priv/native/macos/DesktopWebView"),
-        Path.expand("../webview/priv/native/macos/DesktopWebView"),
-        Path.expand("../../webview/priv/native/macos/DesktopWebView")
+        pkg.host_binary,
+        System.get_env("DESKTOP_HOST_BINARY"),
+        # Back-compat alias used by existing build scripts
+        System.get_env("DESKTOP_WEBVIEW_BINARY")
       ]
       |> Enum.filter(&(is_binary(&1) and &1 != ""))
+      |> Enum.map(&Path.expand/1)
+      |> Enum.filter(&File.exists?/1)
 
-    case Enum.find(candidates, &File.exists?/1) do
-      nil ->
-        raise """
-        DesktopWebView host binary not found for macOS packaging.
-
-        Set DESKTOP_WEBVIEW_BINARY, package.webview_binary, or build/install
-        :desktop_webview so priv/native/macos/DesktopWebView exists.
-        """
-
-      path ->
+    case explicit do
+      [path | _] ->
         path
+
+      [] ->
+        case discover_host_binaries(pkg) do
+          [path] ->
+            path
+
+          [] ->
+            raise """
+            Native host binary not found for macOS :host_first packaging.
+
+            Set package.host_binary, DESKTOP_HOST_BINARY, or ship a binary under a
+            Mix dependency at priv/native/macos/<executable> (discovered by convention).
+            """
+
+          paths ->
+            raise """
+            Multiple host binaries found for macOS :host_first packaging:
+
+            #{Enum.map_join(paths, "\n", &"  #{&1}")}
+
+            Set package.host_binary or package.host_executable to disambiguate.
+            """
+        end
     end
   end
 
-  defp desktop_webview_priv_binary do
-    Application.app_dir(:desktop_webview, "priv/native/macos/DesktopWebView")
-  rescue
-    _ -> nil
+  # Convention only: any Mix dep that ships priv/native/macos/<exe>. Deployment
+  # never names a particular OTP application (e.g. desktop_webview).
+  defp discover_host_binaries(%Package{} = pkg) do
+    dep_bins =
+      for {_app, path} <- Mix.Project.deps_paths(),
+          file <- Path.wildcard(Path.join(path, "priv/native/macos/*")),
+          File.regular?(file),
+          host_binary_candidate?(file),
+          do: Path.expand(file)
+
+    name = pkg.host_executable
+
+    bins =
+      if is_binary(name) and name != "" do
+        Enum.filter(dep_bins, &(Path.basename(&1) == name))
+      else
+        dep_bins
+      end
+
+    Enum.uniq(bins)
+  end
+
+  defp host_binary_candidate?(path) do
+    basename = Path.basename(path)
+    # Convention directory ships native executables without an extension.
+    File.regular?(path) and not String.contains?(basename, ".")
   end
 
   def package_sign(developer_id, dmg) do
@@ -470,7 +519,11 @@ defmodule Desktop.Deployment.Package.MacOS do
         framework = Regex.replace(~r"^.+/([^/]+\.framework)", dep, fn _, match -> match end)
         Path.join("Contents/Frameworks", framework)
       else
-        Path.join(["Contents/Resources", relative_priv(pkg), Path.basename(dep)])
+        # bundle_release_rel is set by the layout builder (where the Mix release
+        # was copied into the .app). Keep this layout-driven so rewrites never
+        # branch on a particular webview implementation.
+        release_rel = Map.get(pkg.priv, :bundle_release_rel, "Contents/Resources")
+        Path.join([release_rel, relative_priv(pkg), Path.basename(dep)])
       end
 
     depth =
@@ -485,6 +538,10 @@ defmodule Desktop.Deployment.Package.MacOS do
       escape,
       location
     ])
+  end
+
+  defp put_priv(pkg, key, value) do
+    %{pkg | priv: Map.put(pkg.priv, key, value)}
   end
 
   def rewrite_dep(object, old_name, new_name) do

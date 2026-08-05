@@ -8,10 +8,12 @@ defmodule Desktop.Deployment do
 
     cond do
       config[:package] != nil ->
-        struct!(default_package(rel), config[:package])
+        config[:package] |> expand_package_opts() |> then(&struct!(default_package(rel), &1))
 
       config[:desktop_package] != nil ->
-        struct!(default_package(rel), config[:desktop_package])
+        config[:desktop_package]
+        |> expand_package_opts()
+        |> then(&struct!(default_package(rel), &1))
 
       true ->
         Logger.warning(
@@ -20,6 +22,33 @@ defmodule Desktop.Deployment do
 
         default_package(rel)
     end
+  end
+
+  # Map deprecated package keys onto layout/host fields so apps never need
+  # deployment to know about a particular webview OTP application.
+  defp expand_package_opts(opts) when is_list(opts) do
+    opts = Map.new(opts)
+
+    layout =
+      case Map.fetch(opts, :macos_layout) do
+        {:ok, layout} ->
+          layout
+
+        :error ->
+          case Map.get(opts, :webview_backend) do
+            :wx -> :release_first
+            :desktop_webview -> :host_first
+            _ -> :host_first
+          end
+      end
+
+    host_binary = Map.get(opts, :host_binary) || Map.get(opts, :webview_binary)
+
+    opts
+    |> Map.drop([:webview_backend, :webview_binary])
+    |> Map.put(:macos_layout, layout)
+    |> Map.put(:host_binary, host_binary)
+    |> Map.to_list()
   end
 
   def generate_installer(%Mix.Release{} = rel) do

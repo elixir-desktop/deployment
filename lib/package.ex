@@ -20,9 +20,20 @@ defmodule Desktop.Deployment.Package do
             env: %{},
             # import options
             import_inofitywait: false,
-            # macOS DesktopWebView host-first packaging (default on MacOS)
-            webview_backend: :desktop_webview,
-            webview_binary: nil,
+            # macOS .app layout:
+            # :host_first — native host binary in Contents/MacOS, Mix release under
+            #              Contents/Resources/<release_subdir>/ (e.g. beam/)
+            # :release_first — Mix release under Contents/Resources/, optional MacOS/run
+            macos_layout: :host_first,
+            # Absolute path to the native host binary (host_first). Prefer
+            # package.host_binary or DESKTOP_HOST_BINARY; otherwise any Mix dep that
+            # ships priv/native/macos/<exe> is discovered by convention.
+            host_binary: nil,
+            # Basename to install as Contents/MacOS/<name> (defaults to host basename)
+            host_executable: nil,
+            # Subdirectory under Contents/Resources for the Mix release (host_first)
+            release_subdir: "beam",
+            # OTP app name written into the host config for starting the release
             beam_app_name: nil,
             microphone_usage:
               "This app may use the microphone for calls and voice features inside the app.",
