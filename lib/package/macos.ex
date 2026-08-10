@@ -18,8 +18,12 @@ defmodule Desktop.Deployment.Package.MacOS do
 
   def release(%Package{} = pkg) do
     case pkg.macos_layout do
-      :host_first -> release_host_first(pkg)
-      :release_first -> release_release_first(pkg)
+      :host_first ->
+        release_host_first(pkg)
+
+      :release_first ->
+        release_release_first(pkg)
+
       other ->
         raise "Unknown macos_layout #{inspect(other)}. Use :host_first or :release_first."
     end
