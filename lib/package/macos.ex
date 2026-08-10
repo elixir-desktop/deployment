@@ -59,6 +59,13 @@ defmodule Desktop.Deployment.Package.MacOS do
 
     [lifetime]
     mode = reconnect
+    # Host-driven BEAM restart (replaces the heart watchdog). The native
+    # DesktopWebView host watches its child BEAM process and respawns it on
+    # any exit; `system.prepare_quit` from Elixir suppresses respawn during a
+    # user-initiated quit. The Erlang release does not need -heart here.
+    restart_beam = true
+    restart_max_attempts = 0
+    restart_backoff_ms = 500
     """
 
     # Host binaries (e.g. DesktopWebView) look for <executable>.ini next to Resources.
