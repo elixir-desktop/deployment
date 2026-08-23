@@ -45,8 +45,10 @@ defmodule Desktop.Deployment.Package.MacOS do
 
     host_bin = resolve_host_binary!(pkg)
     host_name = pkg.host_executable || Path.basename(host_bin)
-    File.cp!(host_bin, Path.join(bindir, host_name))
-    File.chmod!(Path.join(bindir, host_name), 0o755)
+    dest = Path.join(bindir, host_name)
+    File.cp!(host_bin, dest)
+    File.chmod!(dest, 0o755)
+    IO.puts("Host-first MacOS/#{host_name} <- #{host_bin}")
 
     beam_app = pkg.beam_app_name || to_string(pkg.app_name || Mix.Project.config()[:app])
 
