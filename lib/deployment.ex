@@ -29,24 +29,31 @@ defmodule Desktop.Deployment do
   defp expand_package_opts(opts) when is_list(opts) do
     opts = Map.new(opts)
 
-    layout =
-      case Map.fetch(opts, :macos_layout) do
-        {:ok, layout} ->
-          layout
+    default_layout =
+      case Map.get(opts, :webview_backend) do
+        :wx -> :release_first
+        :desktop_webview -> :host_first
+        _ -> :host_first
+      end
 
-        :error ->
-          case Map.get(opts, :webview_backend) do
-            :wx -> :release_first
-            :desktop_webview -> :host_first
-            _ -> :host_first
-          end
+    macos_layout =
+      case Map.fetch(opts, :macos_layout) do
+        {:ok, layout} -> layout
+        :error -> default_layout
+      end
+
+    windows_layout =
+      case Map.fetch(opts, :windows_layout) do
+        {:ok, layout} -> layout
+        :error -> default_layout
       end
 
     host_binary = Map.get(opts, :host_binary) || Map.get(opts, :webview_binary)
 
     opts
     |> Map.drop([:webview_backend, :webview_binary])
-    |> Map.put(:macos_layout, layout)
+    |> Map.put(:macos_layout, macos_layout)
+    |> Map.put(:windows_layout, windows_layout)
     |> Map.put(:host_binary, host_binary)
     |> Map.to_list()
   end

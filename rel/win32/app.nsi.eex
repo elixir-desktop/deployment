@@ -8,7 +8,7 @@ Var STARTMENU_FOLDER
 Var MYTEMP
 
 ; General
-OutFile "../../<%= @package.name %>-${VERSION}.exe"
+OutFile "<%= @package.priv.nsi_outfile %>"
 SetCompressor /SOLID lzma
 SetCompressorDictSize 64
 SetDatablockOptimize ON
@@ -22,9 +22,17 @@ InstallDir "$PROGRAMFILES64\<%= @package.name_long || @package.name %>"
 !define MY_STARTMENUPAGE_REGISTRY_VALUENAME "Start Menu Folder"
 
 ; Launch options
+<%= if @package.priv[:windows_layout] == :host_first do %>
+!define TARGET "$INSTDIR\<%= @package.priv.host_executable %>"
+!define TARGET_PARAMS ""
+!define TARGET_ICON "$INSTDIR\<%= @package.priv.icon_rel %>"
+!define KILL_HOST "<%= @package.priv.host_executable %>"
+<% else %>
 !define TARGET "$INSTDIR\run.vbs"
 !define TARGET_PARAMS ""
-!define TARGET_ICON "$INSTDIR\lib\<%= @package.app_name %>-${VERSION}\priv\icon.ico"
+!define TARGET_ICON "$INSTDIR\<%= @package.priv.icon_rel %>"
+!define KILL_HOST "heart.exe"
+<% end %>
 
 ; Remember install folder
 InstallDirRegKey HKLM "${MY_STARTMENUPAGE_REGISTRY_KEY}" ""
@@ -33,8 +41,8 @@ InstallDirRegKey HKLM "${MY_STARTMENUPAGE_REGISTRY_KEY}" ""
 
 !define MUI_STARTMENUPAGE_DEFAULTFOLDER "<%= @package.name_long || @package.name %>"
 
-!define MUI_ICON "<%= @release.path %>\lib\<%= @package.app_name %>-${VERSION}\priv\icon.ico"
-!define MUI_UNICON "<%= @release.path %>\lib\<%= @package.app_name %>-${VERSION}\priv\icon.ico"
+!define MUI_ICON "<%= @package.priv.package_root %>\<%= @package.priv.icon_rel %>"
+!define MUI_UNICON "<%= @package.priv.package_root %>\<%= @package.priv.icon_rel %>"
 
 ;--------------------------------
 ;Modern UI Configuration
@@ -77,7 +85,7 @@ Section "Base" SecDriveBase
 SectionIn 1 2 3 RO
 
 SetOutPath "$INSTDIR"
-ExecShellWait "" "$SysDir\taskkill.exe" "/f /im heart.exe" SW_HIDE
+ExecShellWait "" "$SysDir\taskkill.exe" "/f /im ${KILL_HOST}" SW_HIDE
 ExecShellWait "" "$SysDir\taskkill.exe" "/f /im epmd.exe" SW_HIDE
 File /r *.*
 
@@ -97,7 +105,7 @@ WriteRegStr HKCR \
     "URL Protocol" ""
 WriteRegStr HKCR \
     "<%= scheme %>\shell\open\command" \
-    "" '"$WINDIR\system32\wscript.exe" "${TARGET}" "%1"'
+    "" '<%= @package.priv.scheme_launcher %>'
 <% end %>
 
 ; Create uninstaller before shortcuts
@@ -204,7 +212,7 @@ Delete "$QUICKLAUNCH\<%= @package.name_long || @package.name %>.lnk"
 SetShellVarContext current
 Delete "$DESKTOP\<%= @package.name_long || @package.name %>.lnk"
 Delete "$QUICKLAUNCH\<%= @package.name_long || @package.name %>.lnk"
-ExecShellWait "" "$SysDir\taskkill.exe" "/f /im heart.exe" SW_HIDE
+ExecShellWait "" "$SysDir\taskkill.exe" "/f /im ${KILL_HOST}" SW_HIDE
 ExecShellWait "" "$SysDir\taskkill.exe" "/f /im epmd.exe" SW_HIDE
 ExecShellWait "" "$SysDir\taskkill.exe" "/f /im <%= @package.name %>.exe" SW_HIDE
 RMDir /r /REBOOTOK "$INSTDIR"
@@ -237,7 +245,7 @@ noshortcuts:
 DeleteRegKey /ifempty HKLM "${MY_STARTMENUPAGE_REGISTRY_KEY}"
 DeleteRegKey /ifempty HKCU "${MY_STARTMENUPAGE_REGISTRY_KEY}"
 DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>"
-DeleteRegKey HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>"
+DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\<%= @package.name %>"
 DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "<%= @package.name %>"
 DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "<%= @package.name %>"
 

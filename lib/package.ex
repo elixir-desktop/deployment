@@ -25,13 +25,21 @@ defmodule Desktop.Deployment.Package do
             #              Contents/Resources/<release_subdir>/ (e.g. beam/)
             # :release_first — Mix release under Contents/Resources/, optional MacOS/run
             macos_layout: :host_first,
+            # Windows NSIS $INSTDIR layout:
+            # :host_first — native host exe + ini at package root, Mix release under
+            #              <release_subdir>/ (e.g. beam/); no run.vbs/heart
+            # :release_first — flat Mix release with run.vbs/run.bat + heart (legacy wx)
+            windows_layout: :host_first,
             # Absolute path to the native host binary (host_first). Prefer
             # package.host_binary or DESKTOP_HOST_BINARY; otherwise any Mix dep that
-            # ships priv/native/macos/<exe> is discovered by convention.
+            # ships priv/native/macos/<exe> or priv/native/windows/<exe>.exe is
+            # discovered by convention.
             host_binary: nil,
-            # Basename to install as Contents/MacOS/<name> (defaults to host basename)
+            # Basename to install as MacOS/<name> or <name>.exe at package root
+            # (defaults to host basename)
             host_executable: nil,
-            # Subdirectory under Contents/Resources for the Mix release (host_first)
+            # Subdirectory for the Mix release under Resources/ (macOS) or package
+            # root (Windows) when using host_first
             release_subdir: "beam",
             # OTP app name written into the host config for starting the release
             beam_app_name: nil,
@@ -146,9 +154,16 @@ defmodule Desktop.Deployment.Package do
       File.rm!(name)
     end
 
-    cp!(toolpath("rel/win32/run.vbs"), rel_path)
-    content = eval_eex(toolpath("rel/win32/run.bat.eex"), rel, pkg)
-    File.write!(Path.join(rel_path, "run.bat"), content)
+    # :release_first uses run.vbs/run.bat + heart; :host_first owns the process.
+    pkg =
+      if pkg.windows_layout == :release_first do
+        cp!(toolpath("rel/win32/run.vbs"), rel_path)
+        content = eval_eex(toolpath("rel/win32/run.bat.eex"), rel, pkg)
+        File.write!(Path.join(rel_path, "run.bat"), content)
+        pkg
+      else
+        pkg
+      end
 
     pkg
   end
@@ -187,36 +202,8 @@ defmodule Desktop.Deployment.Package do
     case os() do
       MacOS -> Package.MacOS.release(pkg)
       Linux -> linux_release(pkg)
-      Windows -> windows_release(pkg)
+      Windows -> Package.Windows.release(pkg)
     end
-  end
-
-  defp windows_release(%Package{release: %Mix.Release{path: rel_path, version: vsn} = rel} = pkg) do
-    build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
-    signfun = win32_sign_function(pkg)
-
-    if signfun == nil do
-      Mix.Shell.IO.info("Not signing secret detected. Skipping signing")
-    else
-      win32_codesign(signfun, build_root)
-    end
-
-    nsi_file = toolpath("rel/win32/app.nsi.eex")
-    {:ok, cur} = :file.get_cwd()
-    :file.set_cwd(String.to_charlist(rel_path))
-
-    content = eval_eex(nsi_file, rel, pkg)
-    File.write!(Path.join(build_root, "app.nsi"), content)
-    cmd!("makensis", ["-NOCD", "-DVERSION=#{vsn}", Path.join(build_root, "app.nsi")])
-    :file.set_cwd(cur)
-    outfile = "#{pkg.name}-#{vsn}.exe"
-
-    if signfun != nil do
-      path = Path.join([build_root, outfile])
-      signfun.(path)
-    end
-
-    %{pkg | priv: Map.put(pkg.priv, :installer_name, outfile)}
   end
 
   defp linux_release(%Package{release: %Mix.Release{path: rel_path, version: vsn} = rel} = pkg) do
