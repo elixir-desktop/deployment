@@ -51,8 +51,33 @@ defmodule Desktop.Deployment.Package do
     vm_args_out = Path.join([rel_path, "releases", vsn, "vm.args"])
     File.write!(vm_args_out, content)
 
+    maybe_append_host_first_elixir_erl_options(pkg, rel_path, vsn)
     copy_extra_files(os(), pkg)
   end
+
+  defp maybe_append_host_first_elixir_erl_options(%Package{elixir_erl_options: ""}, _, _), do: :ok
+
+  defp maybe_append_host_first_elixir_erl_options(
+         %Package{elixir_erl_options: opts, macos_layout: :host_first},
+         rel_path,
+         vsn
+       )
+       when is_binary(opts) do
+    if os() == MacOS do
+      env_sh = Path.join([rel_path, "releases", vsn, "env.sh"])
+
+      append = """
+
+      export ELIXIR_ERL_OPTIONS="+sssdio 128 +sbwt none +sbwtdcpu none +sbwtdio none +scl false +swct lazy +swt high +swtdcpu high +swtdio high -kernel inet_dist_use_interface {127,0,0,1} #{opts} "
+      """
+
+      File.write!(env_sh, File.read!(env_sh) <> append)
+    end
+
+    :ok
+  end
+
+  defp maybe_append_host_first_elixir_erl_options(_, _, _), do: :ok
 
   defp copy_extra_files(
          Windows,
