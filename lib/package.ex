@@ -111,15 +111,22 @@ defmodule Desktop.Deployment.Package do
       file_replace(bin, "Erlang", binary_part(pkg.name <> <<0, 0, 0, 0, 0, 0>>, 0, 6))
       cmd!(toolpath("rel/win32/rcedit.exe"), ["/I", bin, icon])
 
-      :ok =
-        Mix.Tasks.Pe.Update.run(
+      # Host-first: keep the CUI subsystem so OTP 26's user/logger get a console when
+      # DesktopWebView spawns the release (GUI subsystem causes nouser / invalid handle).
+      # Release-first: mark GUI so launching erl.exe does not flash a console window.
+      pe_args =
+        if pkg.windows_layout == :host_first do
+          ["--set-manifest", Path.join(build_root, "app.exe.manifest")]
+        else
           [
             "--set-subsystem",
             "IMAGE_SUBSYSTEM_WINDOWS_GUI",
             "--set-manifest",
             Path.join(build_root, "app.exe.manifest")
-          ] ++ info ++ [bin]
-        )
+          ]
+        end
+
+      :ok = Mix.Tasks.Pe.Update.run(pe_args ++ info ++ [bin])
     end
 
     [elixir] = wildcard(rel, "**/elixir.bat")

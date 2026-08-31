@@ -41,6 +41,17 @@ defmodule Desktop.Deployment.Package.Windows do
 
     beam_app = pkg.beam_app_name || to_string(pkg.app_name || Mix.Project.config()[:app])
 
+    # Windows Mix releases ship `bin/<app>.bat` alongside the Unix `bin/<app>`
+    # shell script. Prefer the batch name in the ini so hosts without the
+    # ".bat preference" fix still spawn correctly.
+    beam_app =
+      if match?({:win32, _}, :os.type()) and not String.ends_with?(beam_app, ".bat") and
+           not String.ends_with?(beam_app, ".cmd") do
+        beam_app <> ".bat"
+      else
+        beam_app
+      end
+
     ini = """
     [beam]
     path = #{release_subdir}
