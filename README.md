@@ -61,8 +61,8 @@ end
 
 ```
 MyApp/                    # NSIS $INSTDIR
-  DesktopWebView.exe      # native host (or package.host_executable)
-  DesktopWebView.ini      # generated host config
+  MyApp.exe               # native host (package.name.exe / package.host_executable)
+  MyApp.ini               # generated host config (<exe_basename>.ini)
   beam/                   # Mix release (package.release_subdir, default "beam")
     bin/<app>...
     erts-.../
@@ -78,7 +78,10 @@ Locate the host binary via (first match wins):
 2. `DESKTOP_HOST_BINARY` (or legacy `DESKTOP_WEBVIEW_BINARY`)
 3. Convention discovery: any Mix dependency that ships `priv/native/windows/<executable>.exe`
 
-Deployment does not hardcode a particular webview package. Apps that use elixir-desktop/webview simply ship that binary under the convention above (or set `host_binary`).
+The installed host filename defaults to `package.name` + `.exe` (override with
+`package.host_executable`). Deployment does not hardcode a particular webview
+package. Apps that use elixir-desktop/webview simply ship that binary under the
+convention above (or set `host_binary`).
 
 Set `windows_layout: :release_first` in `package()` to keep the legacy flat Mix release with `run.vbs`/`run.bat` + heart (OTP `:wx`). Deprecated alias: `webview_backend: :wx`.
 
@@ -89,6 +92,8 @@ All builds (specifically NIFs) are built using msys2, because it's mostly linux 
   - `pacman -S mingw-w64-x86_64-imagemagick mingw-w64-x86_64-nsis mingw-w64-x86_64-nsis mingw-w64-x86_64-osslsigncode mingw-w64-x86_64-openssl`
 
 1) `mix deployment` will generate the release binaries
+
+Windows PE metadata (default icon, manifest, version info, checksum) is applied with **libpe** (`mix pe.update`). ImageMagick (`magick convert`) still resizes `package.icon` (PNG) to `icon.ico` before embedding. WinRun4J `rcedit.exe` is no longer used.
 
 To support windows code signing the user has to create two certificate files `app_key.pem` and `app_key.pem` (e.g. get from sectigo) and put them into the `rel/win32/` subdirectory.
 

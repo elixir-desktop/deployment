@@ -34,7 +34,22 @@ defmodule Desktop.Deployment.Package.Windows do
     File.mkdir_p!(beam_root)
 
     host_bin = resolve_host_binary!(pkg)
-    host_name = pkg.host_executable || Path.basename(host_bin)
+
+    # Destination name in $INSTDIR. Prefer an explicit host_executable, then the
+    # package name (so taskbar pins / shortcuts to dDrive.exe keep working), then
+    # the source basename (e.g. DesktopWebView.exe).
+    host_name =
+      cond do
+        is_binary(pkg.host_executable) and pkg.host_executable != "" ->
+          pkg.host_executable
+
+        is_binary(pkg.name) and to_string(pkg.name) != "" ->
+          to_string(pkg.name) <> ".exe"
+
+        true ->
+          Path.basename(host_bin)
+      end
+
     dest = Path.join(package_root, host_name)
     File.cp!(host_bin, dest)
     IO.puts("Host-first Windows/#{host_name} <- #{host_bin}")
@@ -190,7 +205,8 @@ defmodule Desktop.Deployment.Package.Windows do
 
             #{Enum.map_join(paths, "\n", &"  #{&1}")}
 
-            Set package.host_binary or package.host_executable to disambiguate.
+            Set package.host_binary to select one. package.host_executable only
+            controls the installed filename (defaults to package.name.exe).
             """
         end
     end
@@ -198,25 +214,18 @@ defmodule Desktop.Deployment.Package.Windows do
 
   # Convention only: any Mix dep that ships priv/native/windows/<exe>.exe.
   # Deployment never names a particular OTP application (e.g. desktop_webview).
-  defp discover_host_binaries(%Package{} = pkg) do
+  # `package.host_executable` is the *installed* name (may differ from the source
+  # basename, e.g. DesktopWebView.exe → dDrive.exe) and is not used to filter
+  # discovery here.
+  defp discover_host_binaries(%Package{} = _pkg) do
     dep_bins =
       for {_app, path} <- Mix.Project.deps_paths(),
           file <- Path.wildcard(Path.join(path, "priv/native/windows/*.exe")),
           File.regular?(file),
           do: Path.expand(file)
 
-    name = pkg.host_executable
-
-    bins =
-      if is_binary(name) and name != "" do
-        Enum.filter(dep_bins, &(Path.basename(&1) == name))
-      else
-        # Soft preference for the conventional DesktopWebView host basename when
-        # host_executable is unset and multiple candidates exist.
-        preferred = Enum.filter(dep_bins, &(Path.basename(&1) == "DesktopWebView.exe"))
-        if preferred != [], do: preferred, else: dep_bins
-      end
-
+    preferred = Enum.filter(dep_bins, &(Path.basename(&1) == "DesktopWebView.exe"))
+    bins = if preferred != [], do: preferred, else: dep_bins
     Enum.uniq(bins)
   end
 
