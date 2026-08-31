@@ -34,39 +34,60 @@ defmodule Desktop.Deployment.Package.Windows do
     File.mkdir_p!(beam_root)
 
     host_bin = resolve_host_binary!(pkg)
-
-    # Destination name in $INSTDIR. Prefer an explicit host_executable, then the
-    # package name (so taskbar pins / shortcuts to dDrive.exe keep working), then
-    # the source basename (e.g. DesktopWebView.exe).
-    host_name =
-      cond do
-        is_binary(pkg.host_executable) and pkg.host_executable != "" ->
-          pkg.host_executable
-
-        is_binary(pkg.name) and to_string(pkg.name) != "" ->
-          to_string(pkg.name) <> ".exe"
-
-        true ->
-          Path.basename(host_bin)
-      end
-
-    dest = Path.join(package_root, host_name)
-    File.cp!(host_bin, dest)
+    host_name = host_install_name(pkg, host_bin)
+    File.cp!(host_bin, Path.join(package_root, host_name))
     IO.puts("Host-first Windows/#{host_name} <- #{host_bin}")
 
+    write_host_ini!(package_root, host_name, release_subdir, windows_beam_app_name(pkg))
+    copy_release_tree!(path, beam_root)
+    move_redistributables!(beam_root, package_root)
+
+    icon_rel = Path.join(["lib", "#{pkg.app_name}-#{vsn}", "priv", "icon.ico"])
+
+    pkg =
+      pkg
+      |> put_priv(:windows_layout, :host_first)
+      |> put_priv(:host_executable, host_name)
+      |> put_priv(:release_subdir, release_subdir)
+      |> put_priv(:icon_rel, Path.join(release_subdir, icon_rel))
+      |> put_priv(:package_root, package_root)
+      |> put_priv(:nsi_outfile, "../#{pkg.name}-#{vsn}.exe")
+      |> put_priv(:scheme_launcher, "\"${TARGET}\" \"%1\"")
+
+    finalize_windows_installer(pkg, rel, package_root)
+  end
+
+  # Destination name in $INSTDIR. Prefer an explicit host_executable, then the
+  # package name (so taskbar pins / shortcuts to dDrive.exe keep working), then
+  # the source basename (e.g. DesktopWebView.exe).
+  defp host_install_name(pkg, host_bin) do
+    cond do
+      is_binary(pkg.host_executable) and pkg.host_executable != "" ->
+        pkg.host_executable
+
+      is_binary(pkg.name) and to_string(pkg.name) != "" ->
+        to_string(pkg.name) <> ".exe"
+
+      true ->
+        Path.basename(host_bin)
+    end
+  end
+
+  # Windows Mix releases ship `bin/<app>.bat` alongside the Unix `bin/<app>`
+  # shell script. Prefer the batch name in the ini so hosts without the
+  # ".bat preference" fix still spawn correctly.
+  defp windows_beam_app_name(pkg) do
     beam_app = pkg.beam_app_name || to_string(pkg.app_name || Mix.Project.config()[:app])
 
-    # Windows Mix releases ship `bin/<app>.bat` alongside the Unix `bin/<app>`
-    # shell script. Prefer the batch name in the ini so hosts without the
-    # ".bat preference" fix still spawn correctly.
-    beam_app =
-      if match?({:win32, _}, :os.type()) and not String.ends_with?(beam_app, ".bat") and
-           not String.ends_with?(beam_app, ".cmd") do
-        beam_app <> ".bat"
-      else
-        beam_app
-      end
+    if match?({:win32, _}, :os.type()) and not String.ends_with?(beam_app, ".bat") and
+         not String.ends_with?(beam_app, ".cmd") do
+      beam_app <> ".bat"
+    else
+      beam_app
+    end
+  end
 
+  defp write_host_ini!(package_root, host_name, release_subdir, beam_app) do
     ini = """
     [beam]
     path = #{release_subdir}
@@ -90,15 +111,18 @@ defmodule Desktop.Deployment.Package.Windows do
     """
 
     File.write!(Path.join(package_root, "#{Path.rootname(host_name)}.ini"), ini)
+  end
 
+  defp copy_release_tree!(path, beam_root) do
     File.ls!(path)
     |> Enum.each(fn file ->
       File.cp_r!(Path.join(path, file), Path.join(beam_root, file), fn src, dst ->
         file_md5(src) != file_md5(dst)
       end)
     end)
+  end
 
-    # Redistributables live at package root (next to the host), not only in beam/
+  defp move_redistributables!(beam_root, package_root) do
     for redist <- @redistributables do
       src = Path.join(beam_root, redist)
 
@@ -106,20 +130,6 @@ defmodule Desktop.Deployment.Package.Windows do
         File.rename!(src, Path.join(package_root, redist))
       end
     end
-
-    icon_rel = Path.join(["lib", "#{pkg.app_name}-#{vsn}", "priv", "icon.ico"])
-
-    pkg =
-      pkg
-      |> put_priv(:windows_layout, :host_first)
-      |> put_priv(:host_executable, host_name)
-      |> put_priv(:release_subdir, release_subdir)
-      |> put_priv(:icon_rel, Path.join(release_subdir, icon_rel))
-      |> put_priv(:package_root, package_root)
-      |> put_priv(:nsi_outfile, "../#{pkg.name}-#{vsn}.exe")
-      |> put_priv(:scheme_launcher, "\"${TARGET}\" \"%1\"")
-
-    finalize_windows_installer(pkg, rel, package_root)
   end
 
   defp release_release_first(
