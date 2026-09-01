@@ -68,7 +68,7 @@ defmodule Desktop.Deployment.PeUpdateTest do
     assert pe.coff_header.checksum == LibPE.update_checksum(pe).coff_header.checksum
 
     icons = icon_payloads(rsrc)
-    assert length(icons) >= 1
+    assert icons != []
     refute Enum.any?(icons, fn data -> binary_part(data, 0, 4) == <<0, 0, 1, 0>> end)
   end
 
