@@ -110,10 +110,16 @@ defmodule Desktop.Deployment.Package do
     # erl can be launched directly. Host-first starts via `bin/<app>.bat`, which
     # already passes `-boot`; writing those same flags into `.env` makes OTP
     # exit immediately with "Conflicting -boot options" and the GUI host looks
-    # like a no-op click.
-    if pkg.windows_layout != :host_first and File.exists?("rel/win32/app.env.eex") do
-      content = eval_eex("rel/win32/app.env.eex", rel, pkg)
-      File.write!(new_name <> ".env", content)
+    # like a no-op click. Also remove any leftover `.env` from a prior build.
+    env_file = new_name <> ".env"
+
+    if pkg.windows_layout == :host_first do
+      File.rm(env_file)
+    else
+      if File.exists?("rel/win32/app.env.eex") do
+        content = eval_eex("rel/win32/app.env.eex", rel, pkg)
+        File.write!(env_file, content)
+      end
     end
 
     git_version =
