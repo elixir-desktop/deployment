@@ -134,16 +134,17 @@ defmodule Desktop.Deployment.Package do
     for bin <- [new_name, beam, erlexec] do
       # Unsafe binary removal of "Erlang", needs same length!
       file_replace(bin, "Erlang", binary_part(pkg.name <> <<0, 0, 0, 0, 0, 0>>, 0, 6))
-      cmd!(toolpath("rel/win32/rcedit.exe"), ["/I", bin, icon])
 
       # Host-first: keep the CUI subsystem so OTP 26's user/logger get a console when
       # DesktopWebView spawns the release (GUI subsystem causes nouser / invalid handle).
       # Release-first: mark GUI so launching erl.exe does not flash a console window.
       pe_args =
         if pkg.windows_layout == :host_first do
-          ["--set-manifest", Path.join(build_root, "app.exe.manifest")]
+          ["--set-icon", icon, "--set-manifest", Path.join(build_root, "app.exe.manifest")]
         else
           [
+            "--set-icon",
+            icon,
             "--set-subsystem",
             "IMAGE_SUBSYSTEM_WINDOWS_GUI",
             "--set-manifest",
