@@ -35,21 +35,36 @@ defmodule Desktop.Deployment.Package.Windows do
 
     host_bin = resolve_host_binary!(pkg)
     host_name = host_install_name(pkg, host_bin)
-    File.cp!(host_bin, Path.join(package_root, host_name))
+    host_dest = Path.join(package_root, host_name)
+    File.cp!(host_bin, host_dest)
     IO.puts("Host-first Windows/#{host_name} <- #{host_bin}")
+
+    # Explorer/taskbar use the host PE icon. copy_extra_files embeds the icon into
+    # the renamed erts erl.exe, but the native host is a separate copy and must
+    # be updated here as well.
+    icon_rel = Path.join(["lib", "#{pkg.app_name}-#{vsn}", "priv", "icon.ico"])
+    icon = Path.join(path, icon_rel)
+
+    if File.exists?(icon) do
+      :ok = Mix.Tasks.Pe.Update.run(["--set-icon", icon, host_dest])
+      IO.puts("Host-first Windows/#{host_name} icon <- #{icon}")
+    else
+      Mix.shell().error("Host-first packaging: missing icon at #{icon}")
+    end
 
     write_host_ini!(package_root, host_name, release_subdir, windows_beam_app_name(pkg))
     copy_release_tree!(path, beam_root)
     move_redistributables!(beam_root, package_root)
 
-    icon_rel = Path.join(["lib", "#{pkg.app_name}-#{vsn}", "priv", "icon.ico"])
+    icon_rel = Path.join(release_subdir, icon_rel)
 
     pkg =
       pkg
       |> put_priv(:windows_layout, :host_first)
       |> put_priv(:host_executable, host_name)
       |> put_priv(:release_subdir, release_subdir)
-      |> put_priv(:icon_rel, Path.join(release_subdir, icon_rel))
+      |> put_priv(:icon_rel, nsis_path(icon_rel))
+      |> put_priv(:mui_icon, nsis_path(Path.join(package_root, icon_rel)))
       |> put_priv(:package_root, package_root)
       |> put_priv(:nsi_outfile, "../#{pkg.name}-#{vsn}.exe")
       |> put_priv(:scheme_launcher, "\"${TARGET}\" \"%1\"")
@@ -140,7 +155,8 @@ defmodule Desktop.Deployment.Package.Windows do
     pkg =
       pkg
       |> put_priv(:windows_layout, :release_first)
-      |> put_priv(:icon_rel, icon_rel)
+      |> put_priv(:icon_rel, nsis_path(icon_rel))
+      |> put_priv(:mui_icon, nsis_path(Path.join(path, icon_rel)))
       |> put_priv(:package_root, path)
       |> put_priv(:nsi_outfile, "../../#{pkg.name}-#{vsn}.exe")
       |> put_priv(
@@ -238,6 +254,10 @@ defmodule Desktop.Deployment.Package.Windows do
     bins = if preferred != [], do: preferred, else: dep_bins
     Enum.uniq(bins)
   end
+
+  # NSIS treats `\` as an escape in strings. Paths embedded in the .nsi must use
+  # `/` so CreateShortCut IconLocation and MUI_ICON keep their separators.
+  defp nsis_path(path), do: String.replace(path, "\\", "/")
 
   defp put_priv(pkg, key, value) do
     %{pkg | priv: Map.put(pkg.priv, key, value)}

@@ -106,11 +106,7 @@ defmodule Desktop.Deployment.Package do
     build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
     File.write!(Path.join(build_root, "app.exe.manifest"), content)
 
-    # fetch extra env file
-    if File.exists?("rel/win32/app.env.eex") do
-      content = eval_eex("rel/win32/app.env.eex", rel, pkg)
-      File.write!(new_name <> ".env", content)
-    end
+    maybe_sync_windows_erl_env_file(pkg, rel, new_name)
 
     git_version =
       with {version, 0} <- System.cmd("git", ["describe", "--tags", "--always"]) do
@@ -135,24 +131,8 @@ defmodule Desktop.Deployment.Package do
       # Unsafe binary removal of "Erlang", needs same length!
       file_replace(bin, "Erlang", binary_part(pkg.name <> <<0, 0, 0, 0, 0, 0>>, 0, 6))
 
-      # Host-first: keep the CUI subsystem so OTP 26's user/logger get a console when
-      # DesktopWebView spawns the release (GUI subsystem causes nouser / invalid handle).
-      # Release-first: mark GUI so launching erl.exe does not flash a console window.
-      pe_args =
-        if pkg.windows_layout == :host_first do
-          ["--set-icon", icon, "--set-manifest", Path.join(build_root, "app.exe.manifest")]
-        else
-          [
-            "--set-icon",
-            icon,
-            "--set-subsystem",
-            "IMAGE_SUBSYSTEM_WINDOWS_GUI",
-            "--set-manifest",
-            Path.join(build_root, "app.exe.manifest")
-          ]
-        end
-
-      :ok = Mix.Tasks.Pe.Update.run(pe_args ++ info ++ [bin])
+      :ok =
+        Mix.Tasks.Pe.Update.run(windows_pe_update_args(pkg, icon, build_root) ++ info ++ [bin])
     end
 
     [elixir] = wildcard(rel, "**/elixir.bat")
@@ -199,6 +179,42 @@ defmodule Desktop.Deployment.Package do
       end
 
     pkg
+  end
+
+  # Release-first embeds boot/heart flags in `<name>.exe.env` so the renamed
+  # erl can be launched directly. Host-first starts via `bin/<app>.bat`, which
+  # already passes `-boot`; writing those same flags into `.env` makes OTP
+  # exit immediately with "Conflicting -boot options" and the GUI host looks
+  # like a no-op click. Also remove any leftover `.env` from a prior build.
+  defp maybe_sync_windows_erl_env_file(%Package{windows_layout: :host_first}, _, new_name) do
+    File.rm(new_name <> ".env")
+  end
+
+  defp maybe_sync_windows_erl_env_file(%Package{} = pkg, rel, new_name) do
+    env_file = new_name <> ".env"
+
+    if File.exists?("rel/win32/app.env.eex") do
+      content = eval_eex("rel/win32/app.env.eex", rel, pkg)
+      File.write!(env_file, content)
+    end
+  end
+
+  # Host-first: keep the CUI subsystem so OTP 26's user/logger get a console when
+  # DesktopWebView spawns the release (GUI subsystem causes nouser / invalid handle).
+  # Release-first: mark GUI so launching erl.exe does not flash a console window.
+  defp windows_pe_update_args(%Package{windows_layout: :host_first}, icon, build_root) do
+    ["--set-icon", icon, "--set-manifest", Path.join(build_root, "app.exe.manifest")]
+  end
+
+  defp windows_pe_update_args(_pkg, icon, build_root) do
+    [
+      "--set-icon",
+      icon,
+      "--set-subsystem",
+      "IMAGE_SUBSYSTEM_WINDOWS_GUI",
+      "--set-manifest",
+      Path.join(build_root, "app.exe.manifest")
+    ]
   end
 
   defp copy_extra_files(os, %Package{release: %Mix.Release{} = rel} = pkg)
