@@ -57,7 +57,35 @@ end
 
 ### Windows -> NSIS
 
-All builds (specifically NIFs) are built using msys2, because it's mostly linux compatible but runs natively on windows without any helper libraries. 
+**Default packaging uses host-first layout** (native host binary owns the process; Mix release is a child under `beam/`):
+
+```
+MyApp/                    # NSIS $INSTDIR
+  MyApp.exe               # native host (package.name.exe / package.host_executable)
+  MyApp.ini               # generated host config (<exe_basename>.ini)
+  beam/                   # Mix release (package.release_subdir, default "beam")
+    bin/<app>...
+    erts-.../
+    lib/...
+    releases/...
+  MicrosoftEdgeWebview2Setup.exe
+  vcredist_x64.exe
+```
+
+Locate the host binary via (first match wins):
+
+1. `package.host_binary`
+2. `DESKTOP_HOST_BINARY` (or legacy `DESKTOP_WEBVIEW_BINARY`)
+3. Convention discovery: any Mix dependency that ships `priv/native/windows/<executable>.exe`
+
+The installed host filename defaults to `package.name` + `.exe` (override with
+`package.host_executable`). Deployment does not hardcode a particular webview
+package. Apps that use elixir-desktop/webview simply ship that binary under the
+convention above (or set `host_binary`).
+
+Set `windows_layout: :release_first` in `package()` to keep the legacy flat Mix release with `run.vbs`/`run.bat` + heart (OTP `:wx`). Deprecated alias: `webview_backend: :wx`.
+
+All builds (specifically NIFs) are built using msys2, because it's mostly linux compatible but runs natively on windows without any helper libraries.
 
 0) Installing prerequsites
   - msys2.org
@@ -65,11 +93,13 @@ All builds (specifically NIFs) are built using msys2, because it's mostly linux 
 
 1) `mix deployment` will generate the release binaries
 
-To support windows code signing the user has to create two certificate files `app_key.pem` and `app_key.pem` (e.g. get from sectigo) and put them into the `rel/win32/` subdirectory. 
+Windows PE metadata (default icon, manifest, version info, checksum) is applied with **libpe** (`mix pe.update`). ImageMagick (`magick convert`) still resizes `package.icon` (PNG) to `icon.ico` before embedding. WinRun4J `rcedit.exe` is no longer used.
+
+To support windows code signing the user has to create two certificate files `app_key.pem` and `app_key.pem` (e.g. get from sectigo) and put them into the `rel/win32/` subdirectory.
 
 #### Known Issues / Comments
 
-* The `.vbs` file is used as indirection for the `.bat` file as it avoid creating a black terminal screen that otherwise flashes shortly when launchin a `.bat` file directly
+* For `:release_first`, the `.vbs` file is used as indirection for the `.bat` file as it avoid creating a black terminal screen that otherwise flashes shortly when launchin a `.bat` file directly
 
 * The `.nsis` file currently registers a `app://` protocol handler, this is example use and can be removed for other apps.
 
