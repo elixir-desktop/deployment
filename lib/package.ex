@@ -106,8 +106,12 @@ defmodule Desktop.Deployment.Package do
     build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
     File.write!(Path.join(build_root, "app.exe.manifest"), content)
 
-    # fetch extra env file
-    if File.exists?("rel/win32/app.env.eex") do
+    # Release-first embeds boot/heart flags in `<name>.exe.env` so the renamed
+    # erl can be launched directly. Host-first starts via `bin/<app>.bat`, which
+    # already passes `-boot`; writing those same flags into `.env` makes OTP
+    # exit immediately with "Conflicting -boot options" and the GUI host looks
+    # like a no-op click.
+    if pkg.windows_layout != :host_first and File.exists?("rel/win32/app.env.eex") do
       content = eval_eex("rel/win32/app.env.eex", rel, pkg)
       File.write!(new_name <> ".env", content)
     end
