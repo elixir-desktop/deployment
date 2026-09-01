@@ -56,12 +56,15 @@ defmodule Desktop.Deployment.Package.Windows do
     copy_release_tree!(path, beam_root)
     move_redistributables!(beam_root, package_root)
 
+    icon_rel = Path.join(release_subdir, icon_rel)
+
     pkg =
       pkg
       |> put_priv(:windows_layout, :host_first)
       |> put_priv(:host_executable, host_name)
       |> put_priv(:release_subdir, release_subdir)
-      |> put_priv(:icon_rel, Path.join(release_subdir, icon_rel))
+      |> put_priv(:icon_rel, nsis_path(icon_rel))
+      |> put_priv(:mui_icon, nsis_path(Path.join(package_root, icon_rel)))
       |> put_priv(:package_root, package_root)
       |> put_priv(:nsi_outfile, "../#{pkg.name}-#{vsn}.exe")
       |> put_priv(:scheme_launcher, "\"${TARGET}\" \"%1\"")
@@ -152,7 +155,8 @@ defmodule Desktop.Deployment.Package.Windows do
     pkg =
       pkg
       |> put_priv(:windows_layout, :release_first)
-      |> put_priv(:icon_rel, icon_rel)
+      |> put_priv(:icon_rel, nsis_path(icon_rel))
+      |> put_priv(:mui_icon, nsis_path(Path.join(path, icon_rel)))
       |> put_priv(:package_root, path)
       |> put_priv(:nsi_outfile, "../../#{pkg.name}-#{vsn}.exe")
       |> put_priv(
@@ -250,6 +254,10 @@ defmodule Desktop.Deployment.Package.Windows do
     bins = if preferred != [], do: preferred, else: dep_bins
     Enum.uniq(bins)
   end
+
+  # NSIS treats `\` as an escape in strings. Paths embedded in the .nsi must use
+  # `/` so CreateShortCut IconLocation and MUI_ICON keep their separators.
+  defp nsis_path(path), do: String.replace(path, "\\", "/")
 
   defp put_priv(pkg, key, value) do
     %{pkg | priv: Map.put(pkg.priv, key, value)}

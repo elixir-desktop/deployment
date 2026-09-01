@@ -25,12 +25,13 @@ InstallDir "$PROGRAMFILES64\<%= @package.name_long || @package.name %>"
 <%= if @package.priv[:windows_layout] == :host_first do %>
 !define TARGET "$INSTDIR\<%= @package.priv.host_executable %>"
 !define TARGET_PARAMS ""
-!define TARGET_ICON "$INSTDIR\<%= @package.priv.icon_rel %>"
+; Host PE embeds the package icon; shortcuts should use that, not a priv .ico path.
+!define TARGET_ICON "${TARGET}"
 !define KILL_HOST "<%= @package.priv.host_executable %>"
 <% else %>
 !define TARGET "$INSTDIR\run.vbs"
 !define TARGET_PARAMS ""
-!define TARGET_ICON "$INSTDIR\<%= @package.priv.icon_rel %>"
+!define TARGET_ICON "$INSTDIR/<%= @package.priv.icon_rel %>"
 !define KILL_HOST "heart.exe"
 <% end %>
 
@@ -41,8 +42,8 @@ InstallDirRegKey HKLM "${MY_STARTMENUPAGE_REGISTRY_KEY}" ""
 
 !define MUI_STARTMENUPAGE_DEFAULTFOLDER "<%= @package.name_long || @package.name %>"
 
-!define MUI_ICON "<%= @package.priv.package_root %>\<%= @package.priv.icon_rel %>"
-!define MUI_UNICON "<%= @package.priv.package_root %>\<%= @package.priv.icon_rel %>"
+!define MUI_ICON "<%= @package.priv.mui_icon %>"
+!define MUI_UNICON "<%= @package.priv.mui_icon %>"
 
 ;--------------------------------
 ;Modern UI Configuration
