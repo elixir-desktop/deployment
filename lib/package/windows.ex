@@ -35,14 +35,26 @@ defmodule Desktop.Deployment.Package.Windows do
 
     host_bin = resolve_host_binary!(pkg)
     host_name = host_install_name(pkg, host_bin)
-    File.cp!(host_bin, Path.join(package_root, host_name))
+    host_dest = Path.join(package_root, host_name)
+    File.cp!(host_bin, host_dest)
     IO.puts("Host-first Windows/#{host_name} <- #{host_bin}")
+
+    # Explorer/taskbar use the host PE icon. copy_extra_files embeds the icon into
+    # the renamed erts erl.exe, but the native host is a separate copy and must
+    # be updated here as well.
+    icon_rel = Path.join(["lib", "#{pkg.app_name}-#{vsn}", "priv", "icon.ico"])
+    icon = Path.join(path, icon_rel)
+
+    if File.exists?(icon) do
+      :ok = Mix.Tasks.Pe.Update.run(["--set-icon", icon, host_dest])
+      IO.puts("Host-first Windows/#{host_name} icon <- #{icon}")
+    else
+      Mix.shell().error("Host-first packaging: missing icon at #{icon}")
+    end
 
     write_host_ini!(package_root, host_name, release_subdir, windows_beam_app_name(pkg))
     copy_release_tree!(path, beam_root)
     move_redistributables!(beam_root, package_root)
-
-    icon_rel = Path.join(["lib", "#{pkg.app_name}-#{vsn}", "priv", "icon.ico"])
 
     pkg =
       pkg
