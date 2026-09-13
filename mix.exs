@@ -38,11 +38,11 @@ defmodule Desktop.Deployment.MixProject do
   defp deps do
     [
       # Credo
-      {:httpoison, "~> 2.0", runtime: false},
+      {:httpoison, "~> 3.0", runtime: false},
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
       # 1.3.0+ (icon embedding) is on GitHub; switch to Hex once published.
       {:libpe, github: "elixir-desktop/libpe", branch: "master"},
-      {:poison, "~> 3.0"}
+      {:poison, "~> 6.0"}
     ]
   end
 end

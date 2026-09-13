@@ -690,6 +690,8 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   defp uid_to_string(uid) when is_list(uid), do: List.to_string(uid)
+  # DirectoryString as decoded by :public_key, e.g. {:utf8String, "..."}
+  defp uid_to_string({_type, uid}), do: uid_to_string(uid)
   defp uid_to_string(uid), do: to_string(uid)
 
   def maybe_import_p12(file, password, uids, keychain_password \\ nil) do
@@ -796,7 +798,7 @@ defmodule Desktop.Deployment.Package.MacOS do
   end
 
   defp scan({:AttributeTypeAndValue, @friendly_attribute, friendly}) do
-    case Regex.scan(~r/\(([^)]+)\)$/, friendly) do
+    case Regex.scan(~r/\(([^)]+)\)$/, uid_to_string(friendly)) do
       [[_full, uid]] -> [uid]
       _ -> []
     end
