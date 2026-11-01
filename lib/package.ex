@@ -108,21 +108,7 @@ defmodule Desktop.Deployment.Package do
 
     maybe_sync_windows_erl_env_file(pkg, rel, new_name)
 
-    git_version =
-      with {version, 0} <- System.cmd("git", ["describe", "--tags", "--always"]) do
-        String.trim(version)
-      end
-
-    info =
-      %{
-        "CompanyName" => pkg.company,
-        "FileDescription" => pkg.description,
-        "FileVersion" => git_version || vsn,
-        "LegalCopyright" => "#{pkg.company}. All rights reserved.",
-        "ProductName" => pkg.name,
-        "ProductVersion" => vsn
-      }
-      |> Enum.flat_map(fn {key, value} -> ["--set-info", key, value] end)
+    info = windows_version_info_args(pkg, windows_file_version(vsn), vsn)
 
     [beam] = wildcard(rel, "**/beam.smp.dll")
     [erlexec] = wildcard(rel, "**/erlexec.dll")
@@ -197,6 +183,43 @@ defmodule Desktop.Deployment.Package do
       content = eval_eex("rel/win32/app.env.eex", rel, pkg)
       File.write!(env_file, content)
     end
+  end
+
+  def windows_file_version(vsn) do
+    with {described, 0} <- System.cmd("git", ["describe", "--tags", "--always"]) do
+      String.trim(described)
+    else
+      _ -> vsn
+    end
+  end
+
+  # Beam binaries keep FileDescription = description and ProductName = name.
+  # The Windows host process is what Shell_NotifyIcon attributes the toast to,
+  # so its FileDescription and ProductName are the long product name.
+  def windows_version_info_args(pkg, file_version, product_version) do
+    version_info_args(pkg, file_version, product_version, %{})
+  end
+
+  def host_version_info_args(pkg, file_version, product_version) do
+    long_name = pkg.name_long || pkg.name
+
+    version_info_args(pkg, file_version, product_version, %{
+      "FileDescription" => long_name,
+      "ProductName" => long_name
+    })
+  end
+
+  defp version_info_args(pkg, file_version, product_version, overrides) do
+    %{
+      "CompanyName" => pkg.company,
+      "FileDescription" => pkg.description,
+      "FileVersion" => file_version,
+      "LegalCopyright" => "#{pkg.company}. All rights reserved.",
+      "ProductName" => pkg.name,
+      "ProductVersion" => product_version
+    }
+    |> Map.merge(overrides)
+    |> Enum.flat_map(fn {key, value} -> ["--set-info", key, value] end)
   end
 
   # Host-first: keep the CUI subsystem so OTP 26's user/logger get a console when

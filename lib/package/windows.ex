@@ -45,12 +45,21 @@ defmodule Desktop.Deployment.Package.Windows do
     icon_rel = Path.join(["lib", "#{pkg.app_name}-#{vsn}", "priv", "icon.ico"])
     icon = Path.join(path, icon_rel)
 
-    if File.exists?(icon) do
-      :ok = Mix.Tasks.Pe.Update.run(["--set-icon", icon, host_dest])
-      IO.puts("Host-first Windows/#{host_name} icon <- #{icon}")
-    else
-      Mix.shell().error("Host-first packaging: missing icon at #{icon}")
-    end
+    # Toast headers use this process's FileDescription. The beam copy is stamped
+    # in copy_extra_files, but Shell_NotifyIcon runs in the host, so the host
+    # needs the same fields with the long product name.
+    info = Package.host_version_info_args(pkg, Package.windows_file_version(vsn), vsn)
+
+    args =
+      if File.exists?(icon) do
+        IO.puts("Host-first Windows/#{host_name} icon <- #{icon}")
+        ["--set-icon", icon]
+      else
+        Mix.shell().error("Host-first packaging: missing icon at #{icon}")
+        []
+      end
+
+    :ok = Mix.Tasks.Pe.Update.run(args ++ info ++ [host_dest])
 
     write_host_ini!(package_root, host_name, release_subdir, windows_beam_app_name(pkg))
     copy_release_tree!(path, beam_root)
