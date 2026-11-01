@@ -186,9 +186,8 @@ defmodule Desktop.Deployment.Package do
   end
 
   def windows_file_version(vsn) do
-    with {described, 0} <- System.cmd("git", ["describe", "--tags", "--always"]) do
-      String.trim(described)
-    else
+    case System.cmd("git", ["describe", "--tags", "--always"]) do
+      {described, 0} -> String.trim(described)
       _ -> vsn
     end
   end
