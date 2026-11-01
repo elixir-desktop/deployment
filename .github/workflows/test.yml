@@ -2,9 +2,9 @@ name: "test mix.create_keychain"
 on: ["push", "pull_request"]
 env:
   ASDF_VERSION: v0.18.1
-  OTP_VERSION: 24.3.4.15
-  ELIXIR_VERSION: 1.15.8
-  ELIXIR_VARIANT: -otp-24
+  OTP_VERSION: 27.3.4.19
+  ELIXIR_VERSION: 1.18.6
+  ELIXIR_VARIANT: -otp-27
 
 jobs:
   macos:
