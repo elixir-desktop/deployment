@@ -57,6 +57,12 @@ defmodule Desktop.Deployment.WindowsVersionInfoTest do
     assert File.exists?(Package.toolpath("rel/win32/aumid.nsh"))
   end
 
+  test "aumid.nsh allocates a full 16-byte PROPVARIANT" do
+    nsh = File.read!(Package.toolpath("rel/win32/aumid.nsh"))
+    assert nsh =~ "System::Alloc 16"
+    refute nsh =~ "*(i0,i0,p0)"
+  end
+
   defp info_map(args) do
     args
     |> Enum.chunk_every(3)

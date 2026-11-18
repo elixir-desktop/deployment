@@ -121,6 +121,11 @@ defmodule Desktop.Deployment.Package.Windows do
     end
   end
 
+  defp maybe_copy_splash_icon!(%Package{splash_icon: splash}, _release_path, _vsn, _package_root)
+       when splash in [nil, ""] do
+    nil
+  end
+
   defp maybe_copy_splash_icon!(%Package{} = pkg, release_path, vsn, package_root) do
     splash_rel = Path.join(["lib", "#{pkg.app_name}-#{vsn}", "priv", "splash.png"])
     splash_src = Path.join(release_path, splash_rel)

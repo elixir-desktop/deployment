@@ -189,8 +189,12 @@ defmodule Desktop.Deployment.Package do
 
     # Keep a PNG next to the host for the Windows splash (GDI+ loads PNG).
     # Resize for a crisp splash mark without shipping a multi‑MB source asset.
+    # Force-overwrite: Mix :assemble may already have copied priv/splash.png
+    # into the release, and priv_import! skips existing files.
     cmd!("magick", ["convert", "-resize", "256x256", path, "splash.png"])
-    priv_import!(pkg, "splash.png", strip: false)
+    dst = Path.join(priv(pkg), "splash.png")
+    File.mkdir_p!(priv(pkg))
+    File.cp!("splash.png", dst)
     :ok
   end
 

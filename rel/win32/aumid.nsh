@@ -36,7 +36,9 @@ Function SetLnkAppUserModelIdFn
         ${If} $R6 = 0
         ${AndIf} $R3 <> 0
           System::Call '*(g "{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}",i5)p.R4'
-          System::Call '*(i0,i0,p0)p.R5'
+          ; PROPVARIANT is 16 bytes; *(i0,i0,p0) is only 12 on 32-bit NSIS.
+          System::Alloc 16
+          Pop $R5
           System::Call 'propsys::InitPropVariantFromString(w "${APP_USER_MODEL_ID}",p R5)i.R6'
           ${If} $R6 = 0
             ; IPropertyStore::SetValue / Commit
