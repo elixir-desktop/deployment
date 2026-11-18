@@ -61,7 +61,17 @@ defmodule Desktop.Deployment.Package.Windows do
 
     :ok = Mix.Tasks.Pe.Update.run(args ++ info ++ [host_dest])
 
-    write_host_ini!(package_root, host_name, release_subdir, windows_beam_app_name(pkg))
+    splash_basename = maybe_copy_splash_icon!(pkg, path, vsn, package_root)
+
+    write_host_ini!(
+      package_root,
+      host_name,
+      release_subdir,
+      windows_beam_app_name(pkg),
+      pkg.identifier,
+      splash_basename
+    )
+
     copy_release_tree!(path, beam_root)
     move_redistributables!(beam_root, package_root)
 
@@ -111,8 +121,34 @@ defmodule Desktop.Deployment.Package.Windows do
     end
   end
 
-  defp write_host_ini!(package_root, host_name, release_subdir, beam_app) do
-    ini = """
+  defp maybe_copy_splash_icon!(%Package{splash_icon: splash}, _release_path, _vsn, _package_root)
+       when splash in [nil, ""] do
+    nil
+  end
+
+  defp maybe_copy_splash_icon!(%Package{} = pkg, release_path, vsn, package_root) do
+    splash_rel = Path.join(["lib", "#{pkg.app_name}-#{vsn}", "priv", "splash.png"])
+    splash_src = Path.join(release_path, splash_rel)
+
+    if File.exists?(splash_src) do
+      File.cp!(splash_src, Path.join(package_root, "splash.png"))
+      IO.puts("Host-first Windows/splash.png <- #{splash_src}")
+      "splash.png"
+    end
+  end
+
+  # Host and BEAM must call SetCurrentProcessExplicitAppUserModelID with the
+  # same value (package.identifier) so Task Manager groups them. The host reads
+  # this from ini; BEAM gets it via EDW_APP_USER_MODEL_ID from the host.
+  def host_ini_content(release_subdir, beam_app, identifier, splash_icon \\ nil) do
+    ui =
+      if is_binary(splash_icon) and splash_icon != "" do
+        "\n[ui]\nsplash_icon = #{splash_icon}\n"
+      else
+        ""
+      end
+
+    """
     [beam]
     path = #{release_subdir}
     app_name = #{beam_app}
@@ -132,9 +168,24 @@ defmodule Desktop.Deployment.Package.Windows do
     restart_beam = true
     restart_max_attempts = 0
     restart_backoff_ms = 500
-    """
 
-    File.write!(Path.join(package_root, "#{Path.rootname(host_name)}.ini"), ini)
+    [windows]
+    app_user_model_id = #{identifier}
+    """ <> ui
+  end
+
+  defp write_host_ini!(
+         package_root,
+         host_name,
+         release_subdir,
+         beam_app,
+         identifier,
+         splash_icon \\ nil
+       ) do
+    File.write!(
+      Path.join(package_root, "#{Path.rootname(host_name)}.ini"),
+      host_ini_content(release_subdir, beam_app, identifier, splash_icon)
+    )
   end
 
   defp copy_release_tree!(path, beam_root) do

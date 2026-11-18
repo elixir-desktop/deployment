@@ -32,6 +32,10 @@ These mix tasks generate binary installers for your Elixir-Desktop project in co
       description: "MyApp is an Elixir App for Desktop",
       description_long: "MyApp for Desktop is powered by Phoenix LiveView",
       icon: "priv/icon.png",
+      # Optional. Windows host-first splash logo (PNG). Copied beside the host
+      # as splash.png and referenced from [ui] splash_icon in the generated ini.
+      # When omitted, the host splash falls back to the PE/module icon.
+      splash_icon: "priv/splash.png",
       # https://developer.gnome.org/menu-spec/#additional-category-registry
       category_gnome: "GNOME;GTK;Office;",
       category_macos: "public.app-category.productivity",
@@ -71,6 +75,13 @@ MyApp/                    # NSIS $INSTDIR
   MicrosoftEdgeWebview2Setup.exe
   vcredist_x64.exe
 ```
+
+Host-first `MyApp.ini` includes `[windows] app_user_model_id = <package.identifier>`.
+The native host should call `SetCurrentProcessExplicitAppUserModelID` with that
+value (and pass it to the BEAM child, e.g. `EDW_APP_USER_MODEL_ID`) so Task
+Manager groups host + BEAM. NSIS Start Menu / Desktop / Quick Launch shortcuts
+get the same `System.AppUserModel.ID`. PE `FileDescription` / `ProductName` on
+both host and BEAM use `package.name_long`.
 
 Locate the host binary via (first match wins):
 
