@@ -3,6 +3,11 @@ Name "<%= @package.name_long || @package.name %> ${VERSION}"
 !include "x64.nsh"
 !include "MUI.nsh"
 !include "WordFunc.nsh"
+!include "LogicLib.nsh"
+
+; Same AppUserModelID as package.identifier / host ini [windows] app_user_model_id.
+!define APP_USER_MODEL_ID "<%= @package.identifier %>"
+!include "<%= Desktop.Deployment.Package.toolpath("rel/win32/aumid.nsh") |> String.replace("\\", "/") %>"
 
 Var STARTMENU_FOLDER
 Var MYTEMP
@@ -121,6 +126,7 @@ ClearErrors
 CreateDirectory "$SMPROGRAMS\$STARTMENU_FOLDER"
 
 CreateShortCut "$SMPROGRAMS\$STARTMENU_FOLDER\<%= @package.name_long || @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
+!insertmacro SetLnkAppUserModelId "$SMPROGRAMS\$STARTMENU_FOLDER\<%= @package.name_long || @package.name %>.lnk"
 
 !insertmacro MUI_STARTMENU_WRITE_END
 
@@ -171,20 +177,22 @@ Section "Desktop shortcut" SecDriveClutterDesktop
 SetShellVarContext All
 ClearErrors
 CreateShortCut "$DESKTOP\<%= @package.name_long || @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
-IfErrors 0 continue_create
+IfErrors 0 desktop_aumid
 SetShellVarContext current
 CreateShortCut "$DESKTOP\<%= @package.name_long || @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
-continue_create:
+desktop_aumid:
+!insertmacro SetLnkAppUserModelId "$DESKTOP\<%= @package.name_long || @package.name %>.lnk"
 SectionEnd
 
 Section "QuickLaunch shortcut" SecDriveClutterQuickLaunch
 SetShellVarContext All
 ClearErrors
 CreateShortCut "$QUICKLAUNCH\<%= @package.name_long || @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
-IfErrors 0 continue_create
+IfErrors 0 quicklaunch_aumid
 SetShellVarContext current
 CreateShortCut "$QUICKLAUNCH\<%= @package.name_long || @package.name %>.lnk" "${TARGET}" "${TARGET_PARAMS}" "${TARGET_ICON}"
-continue_create:
+quicklaunch_aumid:
+!insertmacro SetLnkAppUserModelId "$QUICKLAUNCH\<%= @package.name_long || @package.name %>.lnk"
 SectionEnd
 SubSectionEnd
 

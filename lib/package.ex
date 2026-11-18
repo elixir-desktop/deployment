@@ -10,6 +10,11 @@ defmodule Desktop.Deployment.Package do
             description: "An Elixir App for Dekstop",
             description_long: "An Elixir App for Desktop powered by Phoenix LiveView",
             icon: "priv/icon.png",
+            # Optional PNG (or other image) for the native host splash on
+            # Windows host-first. Copied beside the host as splash.png and
+            # referenced from [ui] splash_icon in the generated ini. When nil,
+            # the host falls back to the PE/module icon.
+            splash_icon: nil,
             # https://developer.gnome.org/menu-spec/#additional-category-registry
             category_gnome: "GNOME;GTK;Office;",
             category_macos: "public.app-category.productivity",
@@ -101,6 +106,8 @@ defmodule Desktop.Deployment.Package do
 
     priv_import!(pkg, "icon.ico", strip: false)
 
+    maybe_import_splash_icon!(pkg)
+
     icon = Path.join(priv(pkg), "icon.ico")
     content = eval_eex(toolpath("rel/win32/app.exe.manifest.eex"), rel, pkg)
     build_root = Path.join([rel_path, "..", ".."]) |> Path.expand()
@@ -172,6 +179,21 @@ defmodule Desktop.Deployment.Package do
   # already passes `-boot`; writing those same flags into `.env` makes OTP
   # exit immediately with "Conflicting -boot options" and the GUI host looks
   # like a no-op click. Also remove any leftover `.env` from a prior build.
+  defp maybe_import_splash_icon!(%Package{splash_icon: nil}), do: :ok
+  defp maybe_import_splash_icon!(%Package{splash_icon: ""}), do: :ok
+
+  defp maybe_import_splash_icon!(%Package{splash_icon: path} = pkg) when is_binary(path) do
+    unless File.exists?(path) do
+      raise "package.splash_icon not found: #{path}"
+    end
+
+    # Keep a PNG next to the host for the Windows splash (GDI+ loads PNG).
+    # Resize for a crisp splash mark without shipping a multi‑MB source asset.
+    cmd!("magick", ["convert", "-resize", "256x256", path, "splash.png"])
+    priv_import!(pkg, "splash.png", strip: false)
+    :ok
+  end
+
   defp maybe_sync_windows_erl_env_file(%Package{windows_layout: :host_first}, _, new_name) do
     File.rm(new_name <> ".env")
   end
@@ -192,20 +214,20 @@ defmodule Desktop.Deployment.Package do
     end
   end
 
-  # Beam binaries keep FileDescription = description and ProductName = name.
-  # The Windows host process is what Shell_NotifyIcon attributes the toast to,
-  # so its FileDescription and ProductName are the long product name.
+  # Host and BEAM share FileDescription/ProductName = name_long so Task Manager
+  # shows one product label when both also share AppUserModelID (identifier).
+  # Shell_NotifyIcon toasts attribute to the host process's FileDescription.
   def windows_version_info_args(pkg, file_version, product_version) do
-    version_info_args(pkg, file_version, product_version, %{})
-  end
-
-  def host_version_info_args(pkg, file_version, product_version) do
     long_name = pkg.name_long || pkg.name
 
     version_info_args(pkg, file_version, product_version, %{
       "FileDescription" => long_name,
       "ProductName" => long_name
     })
+  end
+
+  def host_version_info_args(pkg, file_version, product_version) do
+    windows_version_info_args(pkg, file_version, product_version)
   end
 
   defp version_info_args(pkg, file_version, product_version, overrides) do
