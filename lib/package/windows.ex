@@ -38,6 +38,7 @@ defmodule Desktop.Deployment.Package.Windows do
     host_dest = Path.join(package_root, host_name)
     File.cp!(host_bin, host_dest)
     IO.puts("Host-first Windows/#{host_name} <- #{host_bin}")
+    maybe_stage_aumid_nif!(host_bin, path)
 
     # Explorer/taskbar use the host PE icon. copy_extra_files embeds the icon into
     # the renamed erts erl.exe, but the native host is a separate copy and must
@@ -134,6 +135,31 @@ defmodule Desktop.Deployment.Package.Windows do
       File.cp!(splash_src, Path.join(package_root, "splash.png"))
       IO.puts("Host-first Windows/splash.png <- #{splash_src}")
       "splash.png"
+    end
+  end
+
+  # Out-of-tree host builds often emit aumid_nif.dll beside DesktopWebView.exe.
+  # BEAM loads it from :code.priv_dir of the app that owns
+  # DesktopWebview.AppUserModelId, so stage into that release lib's priv.
+  defp maybe_stage_aumid_nif!(host_bin, release_path) do
+    nif_src = Path.join(Path.dirname(host_bin), "aumid_nif.dll")
+
+    if File.exists?(nif_src) do
+      dests =
+        for release_priv <- Path.wildcard(Path.join(release_path, "lib/*/priv")),
+            File.exists?(
+              Path.join(release_priv, "../ebin/Elixir.DesktopWebview.AppUserModelId.beam")
+            ),
+            do: Path.join(release_priv, "native/windows")
+
+      for dest_dir <- Enum.uniq(dests) do
+        File.mkdir_p!(dest_dir)
+        dest = Path.join(dest_dir, "aumid_nif.dll")
+        File.cp!(nif_src, dest)
+        IO.puts("Host-first Windows/aumid_nif.dll <- #{nif_src} -> #{dest}")
+      end
+
+      :ok
     end
   end
 
