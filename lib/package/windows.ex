@@ -140,17 +140,17 @@ defmodule Desktop.Deployment.Package.Windows do
 
   # Out-of-tree host builds often emit aumid_nif.dll beside DesktopWebView.exe.
   # BEAM loads it from :code.priv_dir of the app that owns
-  # DesktopWebview.AppUserModelId, so stage into that release lib's priv.
+  # DesktopWebview.AppUserModelId. Mix omits an empty priv directory, and
+  # :code.priv_dir still points there, so find the app by its ebin beam and
+  # create priv/native/windows.
   defp maybe_stage_aumid_nif!(host_bin, release_path) do
     nif_src = Path.join(Path.dirname(host_bin), "aumid_nif.dll")
 
     if File.exists?(nif_src) do
       dests =
-        for release_priv <- Path.wildcard(Path.join(release_path, "lib/*/priv")),
-            File.exists?(
-              Path.join(release_priv, "../ebin/Elixir.DesktopWebview.AppUserModelId.beam")
-            ),
-            do: Path.join(release_priv, "native/windows")
+        for ebin <- Path.wildcard(Path.join(release_path, "lib/*/ebin")),
+            File.exists?(Path.join(ebin, "Elixir.DesktopWebview.AppUserModelId.beam")),
+            do: Path.join(Path.dirname(ebin), "priv/native/windows")
 
       for dest_dir <- Enum.uniq(dests) do
         File.mkdir_p!(dest_dir)
