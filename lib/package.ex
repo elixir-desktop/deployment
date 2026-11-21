@@ -187,11 +187,26 @@ defmodule Desktop.Deployment.Package do
       raise "package.splash_icon not found: #{path}"
     end
 
-    # Keep a PNG next to the host for the Windows splash (GDI+ loads PNG).
-    # Resize for a crisp splash mark without shipping a multi‑MB source asset.
+    # Bake onto the splash window gray (#dcdcdc) at the draw size (128) so
+    # transparent gutters cannot show as vertical bands on the host UI.
     # Force-overwrite: Mix :assemble may already have copied priv/splash.png
     # into the release, and priv_import! skips existing files.
-    cmd!("magick", ["convert", "-resize", "256x256", path, "splash.png"])
+    cmd!("magick", [
+      "convert",
+      "-size",
+      "128x128",
+      "xc:#dcdcdc",
+      path,
+      "-resize",
+      "128x128",
+      "-gravity",
+      "center",
+      "-compose",
+      "over",
+      "-composite",
+      "splash.png"
+    ])
+
     dst = Path.join(priv(pkg), "splash.png")
     File.mkdir_p!(priv(pkg))
     File.cp!("splash.png", dst)
