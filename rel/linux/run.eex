@@ -1,5 +1,8 @@
 #!/bin/bash
 set -e
+<%= if Desktop.Deployment.Tooling.os() == Linux do %>
+unset LD_LIBRARY_PATH LD_PRELOAD
+<% end %>
 pushd `dirname $0` > /dev/null
 ulimit -n 10000
 <%= if Desktop.Deployment.Tooling.os() == MacOS do %>
@@ -38,8 +41,13 @@ export ELIXIR_ERL_OPTIONS="+sssdio 128 +sbwt none +sbwtdcpu none +sbwtdio none +
 export ERL_EPMD_ADDRESS=127.0.0.1
 export RELEASE_DISTRIBUTION=name
 export RELEASE_NODE=<%= @package.app_name %>_$$@127.0.0.1
-export LD_LIBRARY_PATH="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/"
-export LD_PRELOAD="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/libredirector.so"
+<%= if Desktop.Deployment.Tooling.os() == Linux do %>
+# Bundled ELF binaries and shared libraries resolve priv/ via $ORIGIN RUNPATH
+# rather than LD_LIBRARY_PATH so host utilities invoked by shell wrappers or
+# subprocesses never load bundled libraries. LD_PRELOAD for libredirector.so is
+# applied only at the final `exec erlexec` in erts-*/bin/erl.
+export DESKTOP_LD_PRELOAD="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/libredirector.so"
+<% end %>
 export GIO_MODULE_DIR="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/gio/modules"
 export GDK_PIXBUF_MODULE_FILE="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/pixbuf.cache"
 export GST_PLUGIN_PATH="$RELEASE_ROOT/lib/<%= @package.app_name %>-<%= @release.version %>/priv/gst/modules"

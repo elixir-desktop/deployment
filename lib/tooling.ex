@@ -39,7 +39,7 @@ defmodule Desktop.Deployment.Tooling do
   end
 
   def priv_import!(pkg, src, opts \\ []) do
-    # Copying libraries to app_name-vsn/priv and adding that to (DY)LD_LIBRARY_PATH
+    # Copying libraries to app_name-vsn/priv (resolved via $ORIGIN RUNPATH on Linux / @loader_path on macOS)
     strip = Keyword.get(opts, :strip, true)
     extra_path = Keyword.get(opts, :extra_path, [])
 

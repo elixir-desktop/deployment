@@ -176,7 +176,7 @@ In addition the keychain to be used can be specified using:
 **Install Dependencies and Tools:**
 ```
 # Tools
-sudo apt install curl git inotify-tools libtool automake make lksctp-tools build-essential
+sudo apt install curl git inotify-tools libtool automake make lksctp-tools build-essential patchelf
 # Build dependencies
 sudo apt install libssl-dev libjpeg-dev libpng-dev libtiff-dev zlib1g-dev libncurses5-dev libssh-dev unixodbc-dev libgmp3-dev libwebkit2gtk-4.0-dev libsctp-dev libgtk-3-dev libnotify-dev libsecret-1-dev catch mesa-common-dev libglu1-mesa-dev freeglut3-dev
 ```

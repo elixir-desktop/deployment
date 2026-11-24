@@ -31,8 +31,183 @@ defmodule Desktop.Deployment.Package.Linux do
     end
 
     import_nss(pkg, deps)
+    patch_erl_script(rel)
+    patch_rpaths(pkg)
     pkg
   end
+
+  @doc false
+  def patch_erl_script(%Mix.Release{} = rel) do
+    [erl] = wildcard(rel, "**/bin/erl")
+    patch_erl_file(erl)
+  end
+
+  @doc false
+  def patch_erl_file(erl) do
+    content = File.read!(erl)
+
+    if not String.contains?(content, "DESKTOP_LD_PRELOAD") do
+      target = ~s(exec "$BINDIR/erlexec" ${1+"$@"})
+
+      if not String.contains?(content, target) do
+        raise "Could not find #{inspect(target)} in #{erl}"
+      end
+
+      replacement =
+        """
+        if [ -n "$DESKTOP_LD_PRELOAD" ]; then
+          export LD_PRELOAD="$DESKTOP_LD_PRELOAD"
+        fi
+        #{target}
+        """
+        |> String.trim_trailing()
+
+      file_replace(erl, target, replacement)
+    end
+  end
+
+  @doc false
+  def patch_rpaths(%Package{release: %Mix.Release{path: rel_path}} = pkg) do
+    patch_rpaths(rel_path, priv(pkg))
+  end
+
+  @doc false
+  def patch_rpaths(rel_path, priv_dir) do
+    patchelf = ensure_patchelf!()
+    priv_dir = Path.expand(priv_dir)
+
+    rel_path
+    |> find_dynamic_elfs()
+    |> Enum.each(fn file ->
+      rpath = rpath_for(file, priv_dir)
+      File.chmod!(file, Bitwise.bor(File.lstat!(file).mode, 0o200))
+      cmd!(patchelf, ["--set-rpath", rpath, file])
+    end)
+  end
+
+  @doc false
+  def rpath_for(file, priv_dir) do
+    from_parts = file |> Path.dirname() |> Path.expand() |> Path.split()
+    to_parts = priv_dir |> Path.expand() |> Path.split()
+    {from_rest, to_rest} = drop_common_prefix(from_parts, to_parts)
+
+    case List.duplicate("..", length(from_rest)) ++ to_rest do
+      [] -> "$ORIGIN"
+      rel_parts -> "$ORIGIN:$ORIGIN/#{Path.join(rel_parts)}"
+    end
+  end
+
+  @doc false
+  def find_dynamic_elfs(root) do
+    root
+    |> walk_regular_files()
+    |> Enum.filter(&dynamic_elf?/1)
+    |> Enum.sort()
+  end
+
+  @doc false
+  def dynamic_elf?(path) do
+    case File.open(path, [:read, :binary], &has_dynamic_segment?/1) do
+      {:ok, result} -> result
+      {:error, _} -> false
+    end
+  end
+
+  defp ensure_patchelf! do
+    System.find_executable("patchelf") ||
+      raise "patchelf is required for Linux packaging (install it e.g. via `apt-get install patchelf`)"
+  end
+
+  defp drop_common_prefix([head | from_tail], [head | to_tail]),
+    do: drop_common_prefix(from_tail, to_tail)
+
+  defp drop_common_prefix(from_rest, to_rest), do: {from_rest, to_rest}
+
+  defp walk_regular_files(dir) do
+    case File.ls(dir) do
+      {:ok, entries} ->
+        Enum.flat_map(entries, &walk_entry(Path.join(dir, &1)))
+
+      {:error, _} ->
+        []
+    end
+  end
+
+  defp walk_entry(path) do
+    case File.lstat(path) do
+      {:ok, %File.Stat{type: :directory}} -> walk_regular_files(path)
+      {:ok, %File.Stat{type: :regular}} -> [path]
+      _ -> []
+    end
+  end
+
+  defp has_dynamic_segment?(io) do
+    with {:ok, header} <- :file.pread(io, 0, 64),
+         {:ok, endian, phoff, phentsize, phnum} <- parse_elf_header(header),
+         {:ok, table} <- :file.pread(io, phoff, phentsize * phnum) do
+      contains_pt_dynamic?(table, endian, phentsize, phnum)
+    else
+      _ -> false
+    end
+  end
+
+  # ET_EXEC (2) or ET_DYN (3) ELF headers for 64-bit / 32-bit, little / big endian
+  defp parse_elf_header(
+         <<0x7F, "ELF", 2, 1, _::binary-size(10), type::little-16, _::binary-size(14),
+           phoff::little-64, _::binary-size(14), phentsize::little-16, phnum::little-16,
+           _::binary>>
+       )
+       when type in [2, 3] and phoff > 0 and phentsize >= 56 and phnum > 0 do
+    {:ok, :little, phoff, phentsize, phnum}
+  end
+
+  defp parse_elf_header(
+         <<0x7F, "ELF", 2, 2, _::binary-size(10), type::big-16, _::binary-size(14), phoff::big-64,
+           _::binary-size(14), phentsize::big-16, phnum::big-16, _::binary>>
+       )
+       when type in [2, 3] and phoff > 0 and phentsize >= 56 and phnum > 0 do
+    {:ok, :big, phoff, phentsize, phnum}
+  end
+
+  defp parse_elf_header(
+         <<0x7F, "ELF", 1, 1, _::binary-size(10), type::little-16, _::binary-size(10),
+           phoff::little-32, _::binary-size(10), phentsize::little-16, phnum::little-16,
+           _::binary>>
+       )
+       when type in [2, 3] and phoff > 0 and phentsize >= 32 and phnum > 0 do
+    {:ok, :little, phoff, phentsize, phnum}
+  end
+
+  defp parse_elf_header(
+         <<0x7F, "ELF", 1, 2, _::binary-size(10), type::big-16, _::binary-size(10), phoff::big-32,
+           _::binary-size(10), phentsize::big-16, phnum::big-16, _::binary>>
+       )
+       when type in [2, 3] and phoff > 0 and phentsize >= 32 and phnum > 0 do
+    {:ok, :big, phoff, phentsize, phnum}
+  end
+
+  defp parse_elf_header(_), do: :error
+
+  defp contains_pt_dynamic?(_table, _endian, _phentsize, 0), do: false
+
+  defp contains_pt_dynamic?(table, endian, phentsize, count)
+       when byte_size(table) >= phentsize do
+    <<entry::binary-size(phentsize), rest::binary>> = table
+
+    p_type =
+      case {endian, entry} do
+        {:little, <<t::little-32, _::binary>>} -> t
+        {:big, <<t::big-32, _::binary>>} -> t
+      end
+
+    if p_type == 2 do
+      true
+    else
+      contains_pt_dynamic?(rest, endian, phentsize, count - 1)
+    end
+  end
+
+  defp contains_pt_dynamic?(_, _, _, _), do: false
 
   defp maybe_import_webview(%Package{} = pkg) do
     webview =
