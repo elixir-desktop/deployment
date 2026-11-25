@@ -234,6 +234,53 @@ defmodule Desktop.Deployment.LinuxRpathTest do
     end
   end
 
+  test "install.eex removes stale lib, erts, and versioned release before extracting" do
+    if Tooling.os() == Linux do
+      rel = %Mix.Release{name: :myapp, version: "1.2.3", path: "/tmp/myapp"}
+      pkg = %Package{name: "MyApp", app_name: :myapp, release: rel}
+
+      rendered = Tooling.eval_eex("rel/linux/install.eex", rel, pkg)
+
+      cleanup_cmd =
+        ~s(rm -rf "$INSTALL_DIR/lib" "$INSTALL_DIR"/erts-* "$INSTALL_DIR/releases/1.2.3")
+
+      assert rendered =~ cleanup_cmd
+
+      {cleanup_pos, _} = :binary.match(rendered, cleanup_cmd)
+      {extract_pos, _} = :binary.match(rendered, "tar xf -")
+      assert cleanup_pos < extract_pos
+
+      install_dir = tmp_dir("install_clean")
+      on_exit(fn -> File.rm_rf!(install_dir) end)
+
+      stale_plugin =
+        Path.join(install_dir, "lib/myapp-1.2.3/priv/gst/modules/libgstvideoscale.so")
+
+      stale_erts = Path.join(install_dir, "erts-12.0/bin/beam.smp")
+      stale_rel = Path.join(install_dir, "releases/1.2.3/start.boot")
+      cookie = Path.join(install_dir, "releases/COOKIE")
+      tmp_file = Path.join(install_dir, "tmp/keep")
+
+      for file <- [stale_plugin, stale_erts, stale_rel, cookie, tmp_file] do
+        File.mkdir_p!(Path.dirname(file))
+        File.write!(file, "data")
+      end
+
+      {_, 0} =
+        System.cmd(
+          "sh",
+          ["-c", cleanup_cmd],
+          env: [{"INSTALL_DIR", install_dir}]
+        )
+
+      refute File.exists?(stale_plugin)
+      refute File.exists?(stale_erts)
+      refute File.exists?(stale_rel)
+      assert File.exists?(cookie)
+      assert File.exists?(tmp_file)
+    end
+  end
+
   test "end-to-end patchelf resolves bundled transitive shared libraries without LD_LIBRARY_PATH" do
     if Tooling.os() == Linux and System.find_executable("patchelf") != nil and
          System.find_executable("gcc") != nil do

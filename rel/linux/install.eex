@@ -12,9 +12,10 @@ else
 fi
 
 echo "Installing $APP_NAME  <%= @release.version %> in $INSTALL_DIR"
-mkdir -p $INSTALL_DIR
-tar cf - * | (cd $INSTALL_DIR; tar xf -)
-rm -f $INSTALL_DIR/install
+mkdir -p "$INSTALL_DIR"
+rm -rf "$INSTALL_DIR/lib" "$INSTALL_DIR"/erts-* "$INSTALL_DIR/releases/<%= @release.version %>"
+tar cf - * | (cd "$INSTALL_DIR"; tar xf -)
+rm -f "$INSTALL_DIR/install"
 
 sed <<'EOF' -e "s^%ROOTDIR%^$INSTALL_DIR^" > $INSTALL_DIR/$APP_NAME.desktop
 [Desktop Entry]
